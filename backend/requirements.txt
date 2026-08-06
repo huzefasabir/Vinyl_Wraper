@@ -12,3 +12,7 @@ celery>=5.3.6
 pillow>=10.2.0
 opencv-python-headless>=4.9.0
 streamlit
+supervision
+torch torchvision
+opencv-python pillow matplotlib
+git+https://github.com/IDEA-Research/GroundingDINO.git
