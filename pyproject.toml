@@ -17,7 +17,10 @@ dependencies = [
     "python-multipart>=0.0.9",
     "redis>=5.0.3",
     "sqlalchemy>=2.0.28",
-    "uvicorn[standard]>=0.28.0",]
+    "uvicorn[standard]>=0.28.0",
+    "streamlit>=1.35.0",
+    "requests>=2.31.0",
+]
 
 [tool.pyright]
 extraPaths = ["backend"]

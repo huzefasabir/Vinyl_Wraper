@@ -9,12 +9,14 @@ services:
     volumes:
       - ./backend:/app
       - ./storage_data:/app/storage_data
+      - ./catalogue.json:/app/catalogue.json
     environment:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql+asyncpg://vinyl_user:vinyl_pass@postgres:5432/vinyl_db
       - REDIS_URL=redis://redis:6379/0
       - STORAGE_TYPE=local
       - BASE_URL=http://localhost:8000
+      - CATALOGUE_PATH=/app/catalogue.json
     depends_on:
       - postgres
       - redis

@@ -1,10 +1,43 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
+*.pyo
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.eggs/
 
 # Virtual environments
-.venv
+.venv/
+venv/
+env/
+
+# Environment / secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Storage — large binary assets & generated output
+storage_data/
+backend/storage_data/
+output/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Logs
+*.log
+logs/
+
+# uv / pip
+uv.lock
+pip-wheel-metadata/
