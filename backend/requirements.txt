@@ -13,6 +13,8 @@ pillow>=10.2.0
 opencv-python-headless>=4.9.0
 streamlit
 supervision
-torch torchvision
-opencv-python pillow matplotlib
-git+https://github.com/IDEA-Research/GroundingDINO.git
+torch>=2.3.1
+torchvision>=0.8
+numpy
+transformers
+gradio_client

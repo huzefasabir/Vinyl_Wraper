@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://vinyl_user:vinyl_pass@localhost:5432/vinyl_db"
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Hugging Face Space for Grounded SAM-2 + GroundingDINO analysis
+    HF_SPACE_ID: str = "Volkopat/SegmentAnythingxGroundingDINO"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

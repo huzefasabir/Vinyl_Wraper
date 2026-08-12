@@ -3,14 +3,14 @@ name = "vinyl-wraper"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "aiofiles>=23.2.1",
     "alembic>=1.13.1",
     "asyncpg>=0.29.0",
     "celery>=5.3.6",
     "fastapi>=0.110.0",
-    "opencv-python-headless>=4.9.0.80",
+    "opencv-python-headless>=4.9.0",
     "pillow>=10.2.0",
     "psycopg2-binary>=2.9.9",
     "pydantic-settings>=2.2.1",
@@ -20,7 +20,19 @@ dependencies = [
     "uvicorn[standard]>=0.28.0",
     "streamlit>=1.35.0",
     "requests>=2.31.0",
+    "supervision>=0.30.0",
+    "torch>=2.3.1",
+    "torchvision>=0.8",
+    "numpy>=2.2.6",
+    "pycocotools>=2.0.11",
+    "transformers>=5.15.0",
+    "gradio-client>=2.6.0",
 ]
 
 [tool.pyright]
-extraPaths = ["backend"]
+extraPaths = [
+    "backend",
+    "Grounded-SAM-2",
+    "Grounded-SAM-2/grounding_dino"
+]
+

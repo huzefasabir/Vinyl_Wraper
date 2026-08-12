@@ -4,6 +4,7 @@ Endpoints:
   GET /api/v1/catalogue/categories
   GET /api/v1/catalogue/{category}/subcategories
   GET /api/v1/catalogue/{category}/{subcategory}/items
+  GET /api/v1/catalogue/thumbnail?path=images/wood/...&size=300
 """
 
 import json
@@ -43,8 +44,7 @@ def _find_key(mapping: dict, name: str) -> str | None:
 
 @lru_cache(maxsize=None)
 def _image_url(image_path: str) -> str:
-    """Convert a relative image_path to a full HTTP URL.
-    No disk check needed — catalogue.json only contains items with valid images."""
+    """Convert a relative image_path to a full HTTP URL."""
     if not image_path:
         return ""
     path = image_path.replace("\\", "/")

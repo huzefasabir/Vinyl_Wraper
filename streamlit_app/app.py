@@ -3,6 +3,9 @@ Vinyl Wrapper AI — Streamlit Frontend
 Connects to FastAPI backend at http://localhost:8000
 Catalogue is loaded entirely from the backend API.
 """
+#uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+#uv run streamlit run streamlit_app/app.py
+
 
 import streamlit as st
 import requests
@@ -18,7 +21,7 @@ API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 BASE_DIR   = Path(__file__).parent.parent
 STORAGE    = BASE_DIR / "storage_data"
 
-UPLOAD_DIR = STORAGE / "uploads"
+UPLOAD_DIR = STORAGE / "uploads/raw"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 st.set_page_config(
@@ -102,8 +105,43 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 }
 .stButton > button:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(168,85,247,0.55) !important; }
 
-/* Image labels */
-.cat-label { font-size: 0.82rem; color: #c4b5fd; margin-top: 0.3rem; text-align: center; }
+/* Sidebar nav radio */
+div[data-testid="stSidebar"] .stRadio > label {
+    display: none;
+}
+div[data-testid="stSidebar"] .stRadio div[role="radiogroup"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+div[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.6rem !important;
+    padding: 0.7rem 1rem !important;
+    border-radius: 10px !important;
+    font-size: 0.97rem !important;
+    font-weight: 600 !important;
+    color: rgba(255,255,255,0.75) !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+div[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:hover {
+    background: rgba(168,85,247,0.12) !important;
+    color: #e9d5ff !important;
+    border-color: rgba(168,85,247,0.3) !important;
+}
+div[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:has(input:checked) {
+    background: linear-gradient(135deg, rgba(124,58,237,0.35), rgba(168,85,247,0.25)) !important;
+    color: #ffffff !important;
+    border-color: rgba(168,85,247,0.6) !important;
+    box-shadow: 0 2px 12px rgba(168,85,247,0.25) !important;
+}
+div[data-testid="stSidebar"] .stRadio input[type="radio"] {
+    display: none !important;
+}
 .cat-code  { font-size: 0.7rem;  color: #7c6fa0; text-align: center; }
 
 /* Category nav cards */
@@ -246,7 +284,7 @@ def save_locally(file_bytes: bytes, filename: str) -> Path:
 def upload_image(file_bytes: bytes, filename: str, local_path: Path) -> dict | None:
     try:
         resp = requests.post(
-            f"{API_BASE}/api/v1/projects/upload",
+            f"{API_BASE}/api/v1/projects/upload/",
             files={"file": (filename, file_bytes, "image/jpeg")},
             timeout=30,
         )
@@ -261,12 +299,40 @@ def upload_image(file_bytes: bytes, filename: str, local_path: Path) -> dict | N
         }
     except requests.exceptions.ConnectionError:
         return {
-            "project_id": local_path.stem,
+            "project_id": local_path,
             "status": "SAVED_LOCALLY",
             "image_url": local_path.as_uri(),
             "local_path": str(local_path),
             "warning": "Backend offline. File saved locally only.",
         }
+
+
+def analyze_image_hf(
+    file_bytes: bytes,
+    filename: str,
+    prompt: str,
+    show_masks: bool = True,
+    show_boxes: bool = True,
+) -> dict | None:
+    """
+    POST /api/v1/projects/analyze
+    Returns dict with 'annotated_image_b64', 'description', 'status'
+    or dict with 'error' key on failure.
+    """
+    try:
+        resp = requests.post(
+            f"{API_BASE}/api/v1/projects/analyze",
+            files={"file": (filename, file_bytes, "image/jpeg")},
+            data={"prompt": prompt, "show_masks": str(show_masks).lower(), "show_boxes": str(show_boxes).lower()},
+            timeout=120,  # HF Space can be slow on cold start
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        return {"error": resp.json().get("detail", "Analysis failed"), "status_code": resp.status_code}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Backend offline. Cannot reach analysis endpoint."}
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out. The HF Space may be loading — please try again."}
 
 
 def pill_html(status: str) -> str:
@@ -302,16 +368,13 @@ with st.sidebar:
     st.divider()
 
     is_alive = api_health()
-    if is_alive:
-        pass
-    else:
-        st.error("⚠️ Backend Offline", icon="🔴")
-        st.caption(f"Expected at: `{API_BASE}`")
-
+    
     st.divider()
 
+    st.markdown('<p style="color:#a78bfa;font-size:0.75rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.6rem;">Navigation</p>', unsafe_allow_html=True)
+
     page = st.radio(
-        "Navigate",
+        "Navigation",
         ["📤 Upload Image", "🗂 Catalogue", "📋 My Projects"],
         label_visibility="collapsed",
     )
@@ -348,6 +411,23 @@ st.markdown("""
 # ─────────────────────────────────────────────
 if "📤 Upload Image" in page:
 
+    # Session state for AI analysis results
+    if "ai_analysis" not in st.session_state:
+        st.session_state["ai_analysis"] = None
+    if "ai_analyzing" not in st.session_state:
+        st.session_state["ai_analyzing"] = False
+    # Style picker state
+    if "show_style_picker" not in st.session_state:
+        st.session_state["show_style_picker"] = False
+    if "selected_style" not in st.session_state:
+        st.session_state["selected_style"] = None
+    if "picker_cat" not in st.session_state:
+        st.session_state["picker_cat"] = None
+    if "picker_sub" not in st.session_state:
+        st.session_state["picker_sub"] = None
+    if "picker_view" not in st.session_state:
+        st.session_state["picker_view"] = "categories"
+
     col_upload, col_preview = st.columns([1.1, 1], gap="large")
 
     with col_upload:
@@ -358,6 +438,7 @@ if "📤 Upload Image" in page:
             "Drag & drop or click to browse",
             type=["jpg", "jpeg", "png", "webp"],
             label_visibility="visible",
+            accept_multiple_files=False,
         )
         st.caption("Supported formats: JPG · PNG · WEBP  |  Max size: 50 MB")
 
@@ -371,16 +452,33 @@ if "📤 Upload Image" in page:
 
             st.divider()
 
-            col_btn_a, col_btn_b = st.columns(2)
-            upload_clicked = col_btn_a.button("🚀 Upload to Backend", use_container_width=True)
-            clear_clicked  = col_btn_b.button("🗑 Clear", use_container_width=True)
+            # ── AI Analysis Settings ───────────────────
+            st.markdown('<div class="section-heading" style="font-size:0.9rem;">🤖 AI Analysis Settings</div>', unsafe_allow_html=True)
+            ai_prompt = st.text_input(
+                "Detection Prompt",
+                value="",
+                placeholder="e.g. floor, wall, furniture…",
+                help="Describe what to detect/segment in the image.",
+            )
+            tog_col1, tog_col2 = st.columns(2)
+            show_masks = tog_col1.checkbox("Show Masks", value=True)
+            show_boxes = tog_col2.checkbox("Show Boxes", value=True)
+
+            st.divider()
+
+            col_btn_a, col_btn_b, col_btn_c = st.columns(3)
+            upload_clicked  = col_btn_a.button("🚀 Upload", use_container_width=True)
+            analyze_clicked = col_btn_b.button("🔍 Analyze with AI", use_container_width=True)
+            clear_clicked   = col_btn_c.button("🗑 Clear", use_container_width=True)
 
             if clear_clicked:
+                st.session_state["ai_analysis"] = None
                 st.rerun()
 
+            # ── Upload flow ───────────────────────────
             if upload_clicked:
                 file_bytes = uploaded_file.getvalue()
-                with st.spinner("Saving to storage_data/uploads/ …"):
+                with st.spinner("Saving to storage_data/uploads/raw …"):
                     local_path = save_locally(file_bytes, uploaded_file.name)
                 st.success(f"✅ Saved locally → `{local_path.relative_to(BASE_DIR)}`")
 
@@ -406,7 +504,7 @@ if "📤 Upload Image" in page:
                     if "projects" not in st.session_state:
                         st.session_state["projects"] = []
                     st.session_state["projects"].append({
-                        "project_id": result.get("project_id", local_path.stem),
+                        "project_id": result.get("project_id", local_path),
                         "filename": uploaded_file.name,
                         "status": result.get("status", "SAVED_LOCALLY"),
                         "image_url": result.get("image_url", local_path.as_uri()),
@@ -416,23 +514,133 @@ if "📤 Upload Image" in page:
                     err = result.get("error", "Unknown error") if result else "No response from server"
                     st.warning(f"⚠️ Backend sync failed: {err}\nFile is still saved locally at `{local_path}`")
 
+            # ── Analyze with AI flow ──────────────────
+            if analyze_clicked:
+                if not ai_prompt.strip():
+                    st.warning("⚠️ Please enter a detection prompt before analyzing.")
+                elif not api_health():
+                    st.error("⚠️ Backend is offline. Start the FastAPI server first.")
+                else:
+                    st.session_state["ai_analysis"] = None  # clear previous result
+                    file_bytes = uploaded_file.getvalue()
+                    with st.spinner("🤖 Sending to Hugging Face AI — this may take 20-60 seconds on first run…"):
+                        analysis = analyze_image_hf(
+                            file_bytes=file_bytes,
+                            filename=uploaded_file.name,
+                            prompt=ai_prompt.strip(),
+                            show_masks=show_masks,
+                            show_boxes=show_boxes,
+                        )
+                    if analysis and "error" not in analysis:
+                        st.session_state["ai_analysis"] = analysis
+                        st.success("✅ AI analysis complete! See the annotated result in the preview →")
+                    else:
+                        err = analysis.get("error", "Unknown error") if analysis else "No response"
+                        st.error(f"❌ Analysis failed: {err}")
+                        st.session_state["ai_analysis"] = None
+
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # ── RIGHT COLUMN: Preview (raw or annotated) ──────────────────────────────
     with col_preview:
-        st.markdown('<div class="glass-card" style="min-height:360px;">', unsafe_allow_html=True)
-        st.markdown('<div class="section-heading">🖼 Image Preview</div>', unsafe_allow_html=True)
-        if uploaded_file:
-            st.image(uploaded_file, caption=uploaded_file.name, use_container_width=True)
+        analysis_result = st.session_state.get("ai_analysis")
+
+        if analysis_result:
+            # ── Show AI-annotated result ──────────────
+            st.markdown(
+                '<div class="section-heading">🤖 AI Analysis Result</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('<div class="glass-card" style="min-height:360px;"', unsafe_allow_html=True)
+
+            import base64 as _b64
+            from PIL import Image as PILImage
+            import io as _io
+
+            annotated_bytes = _b64.b64decode(analysis_result["annotated_image_b64"])
+            annotated_img   = PILImage.open(_io.BytesIO(annotated_bytes))
+            st.image(annotated_img, caption="AI Annotated Result", use_container_width=True)
+
+            description = analysis_result.get("description", "")
+            if description:
+                with st.expander("📋 AI Description", expanded=True):
+                    st.markdown(
+                        f'<div style="font-size:0.88rem;color:rgba(255,255,255,0.82);line-height:1.6;">'
+                        f'{description}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── Selected style display ─────────────────
+            selected_style = st.session_state.get("selected_style")
+            if selected_style:
+                st.markdown(f"""
+                <div style="background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.4);
+                            border-radius:12px;padding:0.9rem;margin-bottom:0.8rem;">
+                    <div style="font-size:0.72rem;color:#a78bfa;font-weight:700;text-transform:uppercase;
+                                letter-spacing:1px;margin-bottom:0.4rem;">✅ Selected Style</div>
+                    <div style="display:flex;align-items:center;gap:0.8rem;">
+                        <img src="{selected_style['image_url']}" style="width:60px;height:60px;
+                             object-fit:cover;border-radius:8px;" />
+                        <div>
+                            <div style="font-weight:700;color:#e9d5ff;font-size:0.95rem;">
+                                {selected_style['name']}</div>
+                            <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);">
+                                {selected_style['code']} · {selected_style['category']} › {selected_style['subcategory']}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("🔄 Change Style", use_container_width=True, key="change_style"):
+                    st.session_state["selected_style"] = None
+                    st.session_state["show_style_picker"] = True
+                    st.session_state["picker_view"] = "categories"
+                    st.rerun()
+            else:
+                if st.button("🎨 Select a Vinyl Style", use_container_width=True, key="open_picker"):
+                    st.session_state["show_style_picker"] = True
+                    st.session_state["picker_view"] = "categories"
+                    st.rerun()
+
+            if st.button("🔄 Show Original Image", use_container_width=True, key="reset_preview"):
+                st.session_state["ai_analysis"] = None
+                st.session_state["selected_style"] = None
+                st.session_state["show_style_picker"] = False
+                st.rerun()
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
         else:
-            st.markdown("""
-            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                        height:260px;color:rgba(255,255,255,0.2);font-size:4rem;">
-                🏠
-                <p style="font-size:0.9rem;color:rgba(255,255,255,0.3);margin-top:0.8rem;">
-                    Your image will appear here
-                </p>
-            </div>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            # ── Show raw uploaded image or placeholder ──
+            st.markdown('<div class="section-heading">🖼 Image Preview</div>', unsafe_allow_html=True)
+            st.markdown('<div class="glass-card" style="min-height:360px;"', unsafe_allow_html=True)
+
+            if uploaded_file:
+                from PIL import Image as PILImage
+                import io
+                img_bytes = uploaded_file.getvalue()
+                img = PILImage.open(io.BytesIO(img_bytes))
+                st.image(img, caption=uploaded_file.name, use_container_width=True)
+                st.markdown(
+                    '<p style="text-align:center;font-size:0.8rem;color:rgba(255,255,255,0.35);margin-top:0.5rem'
+                    'Click <strong>🔍 Analyze with AI</strong> to get the annotated result</p>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown("""
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                            height:260px;color:rgba(255,255,255,0.2);font-size:4rem;">
+                    🏠
+                    <p style="font-size:0.9rem;color:rgba(255,255,255,0.3);margin-top:0.8rem;"
+                        Your image will appear here
+                    </p>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        
 
     st.divider()
     st.markdown('<div class="section-heading">💡 Tips for Best Results</div>', unsafe_allow_html=True)
@@ -450,8 +658,198 @@ if "📤 Upload Image" in page:
             <div style="font-size:0.83rem;color:rgba(255,255,255,0.6);">{desc}</div>
         </div>""", unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-# PAGE: CATALOGUE
+    # ─────────────────────────────────────────────
+    # INLINE STYLE PICKER (shown after AI analysis)
+    # ─────────────────────────────────────────────
+    if st.session_state.get("show_style_picker") and st.session_state.get("ai_analysis"):
+
+        st.divider()
+        st.markdown('<div class="section-heading">🎨 Pick a Vinyl Style</div>', unsafe_allow_html=True)
+
+        if not api_health():
+            st.error("Backend offline — cannot load catalogue.")
+        else:
+            picker_view = st.session_state.get("picker_view", "categories")
+
+            # ── helpers ──────────────────────────────
+            def picker_go_cats():
+                st.session_state["picker_view"] = "categories"
+                st.session_state["picker_cat"] = None
+                st.session_state["picker_sub"] = None
+
+            def picker_go_subs(cat):
+                st.session_state["picker_view"] = "subcategories"
+                st.session_state["picker_cat"] = cat
+
+            def picker_go_items(sub):
+                st.session_state["picker_view"] = "items"
+                st.session_state["picker_sub"] = sub
+
+            # ── LEVEL 1: Categories ──────────────────
+            if picker_view == "categories":
+                st.markdown(
+                    '<p style="color:rgba(255,255,255,0.45);font-size:0.88rem;margin-bottom:1rem;">'
+                    'Select a category to browse styles</p>',
+                    unsafe_allow_html=True,
+                )
+                try:
+                    cats = fetch_categories()
+                except Exception as e:
+                    st.error(f"Failed to load categories: {e}")
+                    cats = []
+
+                COLS = 3
+                for row_start in range(0, len(cats), COLS):
+                    row = cats[row_start: row_start + COLS]
+                    cols = st.columns(COLS, gap="small")
+                    for col, cat in zip(cols, row):
+                        with col:
+                            st.markdown(f"""
+                            <div class="cat-nav-card">
+                                <div class="cat-nav-icon">{cat.get("icon","🗂")}</div>
+                                <div class="cat-nav-title">{cat.get("label", cat["key"])}</div>
+                                <div class="cat-nav-meta">
+                                    <span style="color:#a78bfa;font-weight:600;">{cat.get("subcategory_count",0)}</span>
+                                    sub-collections ·
+                                    <span style="color:#a78bfa;font-weight:600;">{cat.get("total_items",0)}</span>
+                                    styles
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            if st.button(
+                                f"{cat.get('label', cat['key'])} →",
+                                key=f"picker_cat_{cat['key']}",
+                                use_container_width=True,
+                            ):
+                                picker_go_subs(cat)
+                                st.rerun()
+
+            # ── LEVEL 2: Subcategories ───────────────
+            elif picker_view == "subcategories":
+                picker_cat = st.session_state["picker_cat"]
+                bc_col, back_col = st.columns([4, 1])
+                with bc_col:
+                    st.markdown(
+                        f'<div class="breadcrumb">Catalogue'
+                        f'<span class="breadcrumb-sep">›</span>'
+                        f'{picker_cat.get("icon","")} {picker_cat.get("label","")}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with back_col:
+                    st.markdown('<div class="back-btn">', unsafe_allow_html=True)
+                    if st.button("← Back", key="picker_back_cats"):
+                        picker_go_cats(); st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                try:
+                    subs = fetch_subcategories(picker_cat["key"])
+                except Exception as e:
+                    st.error(f"Failed to load sub-categories: {e}")
+                    subs = []
+
+                COLS = 4
+                for row_start in range(0, len(subs), COLS):
+                    row = subs[row_start: row_start + COLS]
+                    cols = st.columns(COLS, gap="small")
+                    for col, sub in zip(cols, row):
+                        with col:
+                            st.markdown(f"""
+                            <div class="sub-nav-card">
+                                <div style="font-size:1.5rem;">📂</div>
+                                <div class="sub-nav-title">{sub["label"]}</div>
+                                <div class="sub-nav-count">{sub["item_count"]} styles</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            if st.button(
+                                "View →",
+                                key=f"picker_sub_{picker_cat['key']}_{sub['key']}",
+                                use_container_width=True,
+                            ):
+                                picker_go_items(sub); st.rerun()
+
+            # ── LEVEL 3: Items grid ──────────────────
+            elif picker_view == "items":
+                picker_cat = st.session_state["picker_cat"]
+                picker_sub = st.session_state["picker_sub"]
+
+                bc_col, back_col = st.columns([4, 1])
+                with bc_col:
+                    st.markdown(
+                        f'<div class="breadcrumb">Catalogue'
+                        f'<span class="breadcrumb-sep">›</span>'
+                        f'{picker_cat.get("icon","")} {picker_cat.get("label","")}'
+                        f'<span class="breadcrumb-sep">›</span>'
+                        f'{picker_sub.get("label","")}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with back_col:
+                    st.markdown('<div class="back-btn">', unsafe_allow_html=True)
+                    if st.button("← Back", key="picker_back_subs"):
+                        st.session_state["picker_view"] = "subcategories"
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                try:
+                    items = fetch_items(picker_cat["key"], picker_sub["key"])
+                except Exception as e:
+                    st.error(f"Failed to load items: {e}")
+                    items = []
+
+                if not items:
+                    st.info("No styles found.")
+                else:
+                    search = st.text_input(
+                        "🔎 Search", placeholder="e.g. Oak, LW101…",
+                        key="picker_search",
+                    )
+                    if search:
+                        items = [i for i in items if
+                                 search.lower() in i.get("name","").lower() or
+                                 search.lower() in i.get("code","").lower()]
+
+                    st.caption(f"{len(items)} styles")
+                    COLS = 4
+                    for row_start in range(0, len(items), COLS):
+                        row_items = items[row_start: row_start + COLS]
+                        cols = st.columns(COLS, gap="small")
+                        for col, item in zip(cols, row_items):
+                            with col:
+                                st.markdown('<div class="item-card">', unsafe_allow_html=True)
+                                if item.get("image_url"):
+                                    st.image(item["image_url"], use_container_width=True)
+                                else:
+                                    st.markdown('<div class="img-placeholder">🖼</div>', unsafe_allow_html=True)
+
+                                st.markdown(
+                                    f'<div class="cat-label">{item.get("name","—")}</div>'
+                                    f'<div class="cat-code"><strong>{item.get("code","")}</strong></div>',
+                                    unsafe_allow_html=True,
+                                )
+                                if st.button(
+                                    "✅ Select",
+                                    key=f"pick_{item.get('code','')}__{row_start}",
+                                    use_container_width=True,
+                                ):
+                                    st.session_state["selected_style"] = {
+                                        "name": item.get("name", "—"),
+                                        "code": item.get("code", ""),
+                                        "image_url": item.get("image_url", ""),
+                                        "category": picker_cat.get("label", picker_cat["key"]),
+                                        "subcategory": picker_sub.get("label", picker_sub["key"]),
+                                        "page": item.get("page", ""),
+                                        "features": item.get("active_features", []),
+                                    }
+                                    st.session_state["show_style_picker"] = False
+                                    st.rerun()
+                                st.markdown('</div>', unsafe_allow_html=True)
+
+            # Close picker button
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("✖ Close Style Picker", key="close_picker"):
+                st.session_state["show_style_picker"] = False
+                st.rerun()
+
+
 # ─────────────────────────────────────────────
 elif "🗂 Catalogue" in page:
 
@@ -481,6 +879,8 @@ elif "🗂 Catalogue" in page:
     def go_items(subcategory: dict):
         st.session_state.cat_view = "items"
         st.session_state.cat_selected_subcategory = subcategory
+        st.session_state.cat_page = 0
+        st.session_state["_last_filter"] = ""
 
     # ─────────────────────────────────────────
     # LEVEL 1 — CATEGORIES
@@ -694,15 +1094,31 @@ elif "🗂 Catalogue" in page:
             if not filtered:
                 st.info("No styles match the selected filters.")
             else:
+                PAGE_SIZE = 20
+                total_pages = max(1, (len(filtered) + PAGE_SIZE - 1) // PAGE_SIZE)
+
+                # Reset page when filters/search change
+                filter_key = str(selected_features) + search_query
+                if st.session_state.get("_last_filter") != filter_key:
+                    st.session_state.cat_page = 0
+                    st.session_state["_last_filter"] = filter_key
+                if "cat_page" not in st.session_state:
+                    st.session_state.cat_page = 0
+
+                page_items = filtered[
+                    st.session_state.cat_page * PAGE_SIZE :
+                    (st.session_state.cat_page + 1) * PAGE_SIZE
+                ]
+
                 COLS = 4
-                for row_start in range(0, len(filtered), COLS):
-                    row_items = filtered[row_start : row_start + COLS]
+                for row_start in range(0, len(page_items), COLS):
+                    row_items = page_items[row_start : row_start + COLS]
                     cols = st.columns(COLS, gap="small")
                     for col, item in zip(cols, row_items):
                         with col:
                             st.markdown('<div class="item-card">', unsafe_allow_html=True)
 
-                            # Image — served by backend /static/
+                            # Thumbnail served by backend
                             image_url = item.get("image_url")
                             if image_url:
                                 st.image(image_url, use_container_width=True)
@@ -728,6 +1144,29 @@ elif "🗂 Catalogue" in page:
                                 st.markdown(feature_badges_html(badges), unsafe_allow_html=True)
 
                             st.markdown('</div>', unsafe_allow_html=True)
+
+                # Pagination controls
+                if total_pages > 1:
+                    st.divider()
+                    p_left, p_mid, p_right = st.columns([1, 2, 1])
+                    with p_left:
+                        if st.session_state.cat_page > 0:
+                            if st.button("← Prev", use_container_width=True, key="pg_prev"):
+                                st.session_state.cat_page -= 1
+                                st.rerun()
+                    with p_mid:
+                        st.markdown(
+                            f'<p style="text-align:center;color:rgba(255,255,255,0.5);'
+                            f'font-size:0.85rem;margin-top:0.5rem;">'
+                            f'Page {st.session_state.cat_page + 1} / {total_pages} '
+                            f'({len(filtered)} styles)</p>',
+                            unsafe_allow_html=True,
+                        )
+                    with p_right:
+                        if st.session_state.cat_page < total_pages - 1:
+                            if st.button("Next →", use_container_width=True, key="pg_next"):
+                                st.session_state.cat_page += 1
+                                st.rerun()
 
 # ─────────────────────────────────────────────
 # PAGE: MY PROJECTS
