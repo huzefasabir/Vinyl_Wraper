@@ -335,6 +335,26 @@ def analyze_image_hf(
         return {"error": "Request timed out. The HF Space may be loading — please try again."}
 
 
+def wrap_surface(original_path: str, mask_path: str, vinyl_image_path: str) -> dict | None:
+    """POST /api/v1/projects/wrap — runs the vinyl renderer on the backend."""
+    try:
+        resp = requests.post(
+            f"{API_BASE}/api/v1/projects/wrap",
+            data={
+                "original_path": original_path,
+                "mask_path": mask_path,
+                "vinyl_image_path": vinyl_image_path,
+            },
+            timeout=120,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        return {"error": resp.json().get("detail", "Wrap failed"), "status_code": resp.status_code}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Backend offline."}
+    except requests.exceptions.Timeout:
+        return {"error": "Render timed out — please try again."}
+
 def pill_html(status: str) -> str:
     cls_map = {"UPLOADED": "pill-uploaded", "PROCESSED": "pill-processed", "ERROR": "pill-error"}
     cls = cls_map.get(status.upper(), "pill-uploaded")
@@ -411,22 +431,16 @@ st.markdown("""
 # ─────────────────────────────────────────────
 if "📤 Upload Image" in page:
 
-    # Session state for AI analysis results
-    if "ai_analysis" not in st.session_state:
-        st.session_state["ai_analysis"] = None
-    if "ai_analyzing" not in st.session_state:
-        st.session_state["ai_analyzing"] = False
-    # Style picker state
-    if "show_style_picker" not in st.session_state:
-        st.session_state["show_style_picker"] = False
-    if "selected_style" not in st.session_state:
-        st.session_state["selected_style"] = None
-    if "picker_cat" not in st.session_state:
-        st.session_state["picker_cat"] = None
-    if "picker_sub" not in st.session_state:
-        st.session_state["picker_sub"] = None
-    if "picker_view" not in st.session_state:
-        st.session_state["picker_view"] = "categories"
+    # Session state
+    for _k, _v in {
+        "ai_analysis": None, "ai_analyzing": False,
+        "original_path": None, "mask_path": None,
+        "rendered_result": None,
+        "show_style_picker": False, "selected_style": None,
+        "picker_cat": None, "picker_sub": None, "picker_view": "categories",
+    }.items():
+        if _k not in st.session_state:
+            st.session_state[_k] = _v
 
     col_upload, col_preview = st.columns([1.1, 1], gap="large")
 
@@ -466,53 +480,18 @@ if "📤 Upload Image" in page:
 
             st.divider()
 
-            col_btn_a, col_btn_b, col_btn_c = st.columns(3)
-            upload_clicked  = col_btn_a.button("🚀 Upload", use_container_width=True)
-            analyze_clicked = col_btn_b.button("🔍 Analyze with AI", use_container_width=True)
-            clear_clicked   = col_btn_c.button("🗑 Clear", use_container_width=True)
+            col_btn_a, col_btn_b = st.columns(2)
+            analyze_clicked = col_btn_a.button("🔍 Analyze with AI", use_container_width=True)
+            clear_clicked   = col_btn_b.button("🗑 Clear", use_container_width=True)
 
             if clear_clicked:
-                st.session_state["ai_analysis"] = None
+                st.session_state["ai_analysis"]   = None
+                st.session_state["original_path"] = None
+                st.session_state["mask_path"]     = None
+                st.session_state["rendered_result"] = None
+                st.session_state["selected_style"] = None
+                st.session_state["show_style_picker"] = False
                 st.rerun()
-
-            # ── Upload flow ───────────────────────────
-            if upload_clicked:
-                file_bytes = uploaded_file.getvalue()
-                with st.spinner("Saving to storage_data/uploads/raw …"):
-                    local_path = save_locally(file_bytes, uploaded_file.name)
-                st.success(f"✅ Saved locally → `{local_path.relative_to(BASE_DIR)}`")
-
-                with st.spinner("Syncing with backend…"):
-                    result = upload_image(file_bytes, uploaded_file.name, local_path)
-
-                if result and "error" not in result:
-                    if "warning" in result:
-                        st.warning(f"⚠️ {result['warning']}")
-                    else:
-                        st.info("☁️ Also synced with backend.")
-
-                    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-                    st.markdown(f"**Project ID:** `{result.get('project_id', local_path.stem)}`")
-                    st.markdown(f"**Status:** {pill_html(result.get('status', 'SAVED_LOCALLY'))}", unsafe_allow_html=True)
-                    st.markdown("**Local path:**")
-                    st.code(result.get("local_path", str(local_path)), language="text")
-                    if result.get("image_url") and not result["image_url"].startswith("file://"):
-                        st.markdown("**Backend URL:**")
-                        st.code(result.get("image_url", "—"), language="text")
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-                    if "projects" not in st.session_state:
-                        st.session_state["projects"] = []
-                    st.session_state["projects"].append({
-                        "project_id": result.get("project_id", local_path),
-                        "filename": uploaded_file.name,
-                        "status": result.get("status", "SAVED_LOCALLY"),
-                        "image_url": result.get("image_url", local_path.as_uri()),
-                        "local_path": str(local_path),
-                    })
-                else:
-                    err = result.get("error", "Unknown error") if result else "No response from server"
-                    st.warning(f"⚠️ Backend sync failed: {err}\nFile is still saved locally at `{local_path}`")
 
             # ── Analyze with AI flow ──────────────────
             if analyze_clicked:
@@ -521,7 +500,8 @@ if "📤 Upload Image" in page:
                 elif not api_health():
                     st.error("⚠️ Backend is offline. Start the FastAPI server first.")
                 else:
-                    st.session_state["ai_analysis"] = None  # clear previous result
+                    st.session_state["ai_analysis"]    = None
+                    st.session_state["rendered_result"] = None
                     file_bytes = uploaded_file.getvalue()
                     with st.spinner("🤖 Sending to Hugging Face AI — this may take 20-60 seconds on first run…"):
                         analysis = analyze_image_hf(
@@ -532,8 +512,10 @@ if "📤 Upload Image" in page:
                             show_boxes=show_boxes,
                         )
                     if analysis and "error" not in analysis:
-                        st.session_state["ai_analysis"] = analysis
-                        st.success("✅ AI analysis complete! See the annotated result in the preview →")
+                        st.session_state["ai_analysis"]    = analysis
+                        st.session_state["original_path"]  = analysis.get("original_path")
+                        st.session_state["mask_path"]      = analysis.get("mask_path")
+                        st.success("✅ AI analysis complete! Select a vinyl style and click Wrap It →")
                     else:
                         err = analysis.get("error", "Unknown error") if analysis else "No response"
                         st.error(f"❌ Analysis failed: {err}")
@@ -551,7 +533,7 @@ if "📤 Upload Image" in page:
                 '<div class="section-heading">🤖 AI Analysis Result</div>',
                 unsafe_allow_html=True,
             )
-            st.markdown('<div class="glass-card" style="min-height:360px;"', unsafe_allow_html=True)
+            st.markdown('<div class="glass-card" style="min-height:360px;">', unsafe_allow_html=True)
 
             import base64 as _b64
             from PIL import Image as PILImage
@@ -572,8 +554,10 @@ if "📤 Upload Image" in page:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # ── Selected style display ─────────────────
+            # ── Selected style + Wrap It ──────────────
             selected_style = st.session_state.get("selected_style")
+            rendered       = st.session_state.get("rendered_result")
+
             if selected_style:
                 st.markdown(f"""
                 <div style="background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.4);
@@ -593,21 +577,63 @@ if "📤 Upload Image" in page:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                if st.button("🔄 Change Style", use_container_width=True, key="change_style"):
-                    st.session_state["selected_style"] = None
-                    st.session_state["show_style_picker"] = True
-                    st.session_state["picker_view"] = "categories"
-                    st.rerun()
+
+                w_col, c_col = st.columns(2)
+                with w_col:
+                    wrap_clicked = st.button("🎨 Wrap It!", use_container_width=True, key="wrap_it")
+                with c_col:
+                    if st.button("🔄 Change Style", use_container_width=True, key="change_style"):
+                        st.session_state["selected_style"]    = None
+                        st.session_state["rendered_result"]   = None
+                        st.session_state["show_style_picker"] = True
+                        st.session_state["picker_view"]       = "categories"
+                        st.rerun()
+
+                if wrap_clicked:
+                    orig = st.session_state.get("original_path")
+                    mask = st.session_state.get("mask_path")
+                    if not orig or not mask:
+                        st.error("⚠️ Run Analyze with AI first to generate the mask.")
+                    else:
+                        with st.spinner("🎨 Rendering vinyl wrap — please wait…"):
+                            wrap_result = wrap_surface(
+                                original_path=orig,
+                                mask_path=mask,
+                                vinyl_image_path=selected_style["image_path"],
+                            )
+                        if wrap_result and "error" not in wrap_result:
+                            st.session_state["rendered_result"] = wrap_result
+                            st.rerun()
+                        else:
+                            err = wrap_result.get("error", "Unknown error") if wrap_result else "No response"
+                            st.error(f"❌ Wrap failed: {err}")
+
             else:
                 if st.button("🎨 Select a Vinyl Style", use_container_width=True, key="open_picker"):
                     st.session_state["show_style_picker"] = True
-                    st.session_state["picker_view"] = "categories"
+                    st.session_state["picker_view"]       = "categories"
                     st.rerun()
 
-            if st.button("🔄 Show Original Image", use_container_width=True, key="reset_preview"):
-                st.session_state["ai_analysis"] = None
-                st.session_state["selected_style"] = None
-                st.session_state["show_style_picker"] = False
+            # ── Rendered result ────────────────────────
+            if rendered and "rendered_image_b64" in rendered:
+                st.divider()
+                st.markdown(
+                    '<div style="font-size:0.8rem;color:#a78bfa;font-weight:700;'
+                    'text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">'
+                    '✨ Rendered Result</div>',
+                    unsafe_allow_html=True,
+                )
+                import base64 as _b64
+                import io as _io
+                from PIL import Image as PILImage
+                rendered_bytes = _b64.b64decode(rendered["rendered_image_b64"])
+                rendered_img   = PILImage.open(_io.BytesIO(rendered_bytes))
+                st.image(rendered_img, caption="Vinyl Wrapped", use_container_width=True)
+
+            if st.button("↩ Start Over", use_container_width=True, key="reset_preview"):
+                for _k in ["ai_analysis", "original_path", "mask_path",
+                           "rendered_result", "selected_style", "show_style_picker"]:
+                    st.session_state[_k] = None if _k != "show_style_picker" else False
                 st.rerun()
 
             st.markdown("</div>", unsafe_allow_html=True)
@@ -624,19 +650,19 @@ if "📤 Upload Image" in page:
                 img = PILImage.open(io.BytesIO(img_bytes))
                 st.image(img, caption=uploaded_file.name, use_container_width=True)
                 st.markdown(
-                    '<p style="text-align:center;font-size:0.8rem;color:rgba(255,255,255,0.35);margin-top:0.5rem'
+                    '<p style="text-align:center;font-size:0.8rem;color:rgba(255,255,255,0.35);margin-top:0.5rem;">'
                     'Click <strong>🔍 Analyze with AI</strong> to get the annotated result</p>',
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown("""
-                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
                             height:260px;color:rgba(255,255,255,0.2);font-size:4rem;">
-                    🏠
-                    <p style="font-size:0.9rem;color:rgba(255,255,255,0.3);margin-top:0.8rem;"
+                        🏠
+                        <p style="font-size:0.9rem;color:rgba(255,255,255,0.3);margin-top:0.8rem;">
                         Your image will appear here
-                    </p>
-                </div>""", unsafe_allow_html=True)
+                        </p>
+                    </div>""", unsafe_allow_html=True)
 
             st.markdown("</div>", unsafe_allow_html=True)
         
@@ -834,6 +860,7 @@ if "📤 Upload Image" in page:
                                         "name": item.get("name", "—"),
                                         "code": item.get("code", ""),
                                         "image_url": item.get("image_url", ""),
+                                        "image_path": item.get("image_path", ""),
                                         "category": picker_cat.get("label", picker_cat["key"]),
                                         "subcategory": picker_sub.get("label", picker_sub["key"]),
                                         "page": item.get("page", ""),
