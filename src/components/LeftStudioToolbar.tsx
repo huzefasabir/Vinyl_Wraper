@@ -121,7 +121,8 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
             </button>
           </div>
 
-          {/* Active Section Content: Wrap Layers list */}
+          {/* Surface Zones feature commented out as per requirement */}
+          {/*
           {activeSection === 'layers' && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between px-1">
@@ -165,6 +166,7 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
               </div>
             </div>
           )}
+          */}
 
           {activeSection === 'environment' && (
             <div className="p-3 bg-[#141c24] rounded-lg border border-[#3e484f]/30 flex flex-col gap-3">

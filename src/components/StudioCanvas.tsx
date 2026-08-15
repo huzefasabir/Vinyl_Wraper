@@ -45,7 +45,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   onOpenSpecsModal
 }) => {
   const [zoom, setZoom] = useState(1);
-  const [showOverlays, setShowOverlays] = useState(true);
+  const [showOverlays, setShowOverlays] = useState(false);
   const [compareMode, setCompareMode] = useState<'single' | 'split'>('single');
   const [splitPos, setSplitPos] = useState(50);
   const [isHoveringSegment, setIsHoveringSegment] = useState<string | null>(null);
@@ -83,7 +83,15 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
       // Render applied materials on segments
       segments.forEach((seg) => {
-        const mat = seg.appliedMaterial || (seg.defaultMaterialSku ? MATERIALS.find(m => m.sku === seg.defaultMaterialSku) : null);
+        const mat =
+          seg.appliedMaterial ||
+          (seg.defaultMaterialSku
+            ? MATERIALS.find(
+                (m) =>
+                  m.sku.toLowerCase() === seg.defaultMaterialSku?.toLowerCase() ||
+                  m.code.toLowerCase() === seg.defaultMaterialSku?.toLowerCase()
+              )
+            : null);
         if (!mat || !seg.boundingBox) return;
 
         const bx = seg.boundingBox.x * w;
@@ -307,7 +315,8 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
             className="w-full h-full object-cover select-none pointer-events-none"
           />
 
-          {/* Interactive Clickable/Hoverable Surface Segment Hotspots */}
+          {/* Interactive Clickable/Hoverable Surface Segment Hotspots (Commented out for time being as requested) */}
+          {/*
           {showOverlays && (
             <div className="absolute inset-0 pointer-events-auto">
               {segments.map((seg) => {
@@ -339,7 +348,6 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
                         : 'border border-dashed border-white/20 hover:border-[#38bdf8]/50'
                     }`}
                   >
-                    {/* Floating Zone Tag */}
                     {(isSelected || isHovered) && (
                       <div className="absolute -top-3 left-2 bg-[#0b141c]/90 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-mono text-[#38bdf8] border border-[#38bdf8]/40 shadow-lg flex items-center gap-1 pointer-events-none">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-ping" />
@@ -351,6 +359,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
               })}
             </div>
           )}
+          */}
 
           {/* Custom Brush Strokes overlay preview */}
           {brushStrokes.length > 0 && (

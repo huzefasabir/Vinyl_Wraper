@@ -1,10 +1,142 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
+import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
+
+// Load Catalog from bodaq_cat.json for standalone node / express serving
+const CATALOG_FILE = path.join(process.cwd(), 'bodaq_cat.json');
+let cachedRawCatalog: any = null;
+let cachedFlatMaterials: any[] = [];
+let cachedCategoriesSummary: any[] = [];
+
+function finishTypeToDisplay(finishType?: string): string {
+  if (!finishType) return 'Super Matt';
+  const mapping: Record<string, string> = {
+    wood_grain: 'Wood Grain',
+    solid: 'Solid Color',
+    super_matt: 'Super Matt',
+    stone_marble: 'Stone & Marble',
+    fabric: 'Natural Fabric',
+    metal: 'Velvet & Metal',
+    leather: 'Soft Leather',
+    special: 'Special Architectural'
+  };
+  return mapping[finishType] || finishType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function getCleanImagePath(diffuseMapPath?: string, code?: string): string {
+  if (!diffuseMapPath) return '';
+  let clean = diffuseMapPath.replace(/\\/g, '/');
+  if (clean.startsWith('images/')) clean = clean.slice('images/'.length);
+  else if (clean.startsWith('storage_data/images/')) clean = clean.slice('storage_data/images/'.length);
+  const dirPart = path.posix.dirname(clean);
+  const codeVal = code || '';
+  return dirPart && dirPart !== '.' ? `${dirPart}/${codeVal}.jpg` : `${codeVal}.jpg`;
+}
+
+function transformCatalogItem(it: any, catKey: string, subcatKey: string) {
+  const code = String(it.code || it.sku || '');
+  const diffuse = String(it.diffuse_map_path || '');
+  const bump = String(it.bump_map_path || '');
+  const normal = String(it.normal_map_path || '');
+  const mainRelImg = getCleanImagePath(diffuse, code);
+  const imageUrl = `/api/images/${mainRelImg}`;
+  const features = it.Features || {};
+  const renderParams = it.render_params || {};
+  const finishDisplay = finishTypeToDisplay(it.finish_type);
+
+  const pbr = {
+    roughness: renderParams.roughness ?? 0.55,
+    specular: renderParams.reflectivity ?? 0.15,
+    normalMap: (renderParams.bump_intensity ?? 1) > 2.0 ? 'Deep Emboss' : 'Micro Texture',
+    grainDirection: typeof renderParams.grain_direction === 'string'
+      ? renderParams.grain_direction.charAt(0).toUpperCase() + renderParams.grain_direction.slice(1)
+      : 'Vertical',
+    thickness: '0.2mm - 0.45mm (Heavy Commercial)',
+    rollWidth: '1220mm (48")',
+    adhesive: 'Pressure-Sensitive Air-Release Comply™',
+    fireRating: features.fire_retardant ? 'Class A / ASTM E84' : 'Commercial Grade',
+    durabilityYears: 10
+  };
+
+  return {
+    id: code.toLowerCase(),
+    code,
+    sku: it.sku || code,
+    name: it.name || code,
+    page: it.page,
+    category: catKey,
+    categoryName: catKey,
+    subCategory: subcatKey,
+    subCategoryName: it.subcategory || subcatKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    finish: finishDisplay,
+    finishType: it.finish_type || 'wood_grain',
+    colorHex: it.base_color_hex || '#4F3C2C',
+    imageUrl,
+    macroUrl: imageUrl,
+    diffuseMapPath: diffuse,
+    bumpMapPath: bump,
+    normalMapPath: normal,
+    features,
+    renderParams,
+    pbr,
+    isNew: Boolean(features.is_new),
+    isFireRetardant: Boolean(features.fire_retardant),
+    description: `Architectural wrap film in ${it.name || code} with authentic ${finishDisplay} finish.`
+  };
+}
+
+function initCatalog() {
+  try {
+    if (!fs.existsSync(CATALOG_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(CATALOG_FILE, 'utf-8'));
+    cachedRawCatalog = raw;
+    const categoriesDict = raw.categories || {};
+    const flatList: any[] = [];
+    const summaryList: any[] = [];
+
+    for (const [catName, catData] of Object.entries<any>(categoriesDict)) {
+      const subcatsDict = catData.sub_categories || {};
+      let catTotal = 0;
+      const subcatsList: any[] = [];
+
+      for (const [subcatKey, items] of Object.entries<any[]>(subcatsDict)) {
+        let subcatDisplay = subcatKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        if (items && items[0]?.subcategory) {
+          subcatDisplay = items[0].subcategory;
+        }
+        const transformed = items.map(it => transformCatalogItem(it, catName, subcatKey));
+        flatList.push(...transformed);
+        catTotal += transformed.length;
+        subcatsList.push({
+          id: subcatKey,
+          name: subcatDisplay,
+          count: transformed.length
+        });
+      }
+
+      summaryList.push({
+        id: catName,
+        name: catName,
+        count: catTotal,
+        subCategories: subcatsList
+      });
+    }
+
+    cachedFlatMaterials = flatList;
+    cachedCategoriesSummary = summaryList;
+    console.log(`[Express] Loaded ${cachedFlatMaterials.length} materials across ${cachedCategoriesSummary.length} categories.`);
+  } catch (err) {
+    console.warn('[Express] Could not load bodaq_cat.json:', err);
+  }
+}
+
+initCatalog();
 
 // In-memory persistent state for sessions
 interface UploadedSpace {
@@ -70,14 +202,156 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // API 1: Health
+
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
       service: 'VinylWrap AI Studio API',
       version: '2.4.0',
+      totalMaterials: cachedFlatMaterials.length,
+      totalCategories: cachedCategoriesSummary.length,
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Serve static images from storage_data/images
+  app.get('/api/images/*', (req, res) => {
+    const rawPath = req.params[0] || '';
+    const cleanPath = decodeURIComponent(rawPath).replace(/\\/g, '/').replace(/^\/+/, '');
+
+    const candidates = [
+      path.join(process.cwd(), 'storage_data', 'images', cleanPath),
+      path.join(process.cwd(), 'storage_data', cleanPath),
+      path.join(process.cwd(), cleanPath),
+    ];
+
+    if (cleanPath.endsWith('.jpg')) {
+      const baseNoExt = cleanPath.slice(0, -4);
+      candidates.push(path.join(process.cwd(), 'storage_data', 'images', `${baseNoExt}.jpg.png`));
+      candidates.push(path.join(process.cwd(), 'storage_data', 'images', `${baseNoExt}.png`));
+    }
+
+    for (const p of candidates) {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile(p);
+      }
+    }
+
+    // High quality architectural fallback SVG
+    const filename = cleanPath.split('/').pop() || 'vinyl-swatch';
+    const cleanLabel = filename.replace(/\.[^/.]+$/, '');
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#141c24"/>
+  <rect x="20" y="20" width="360" height="260" rx="12" fill="#182028" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <circle cx="200" cy="120" r="32" fill="#222b33"/>
+  <text x="200" y="180" fill="#dae3ee" font-family="system-ui, sans-serif" font-size="14" font-weight="600" text-anchor="middle">Vinyl Specimen</text>
+  <text x="200" y="205" fill="#87929a" font-family="monospace" font-size="11" text-anchor="middle">${cleanLabel}</text>
+</svg>`);
+  });
+
+  // Catalog Hierarchy
+  app.get('/api/catalog', (req, res) => {
+    const categoriesDict = cachedRawCatalog?.categories || {};
+    const formattedHierarchy: any = {};
+
+    for (const [catName, catData] of Object.entries<any>(categoriesDict)) {
+      const subcatsDict = catData.sub_categories || {};
+      const formattedSubcats: any = {};
+
+      for (const [subcatKey, items] of Object.entries<any[]>(subcatsDict)) {
+        formattedSubcats[subcatKey] = items.map(it => transformCatalogItem(it, catName, subcatKey));
+      }
+
+      formattedHierarchy[catName] = {
+        name: catName,
+        count: Object.values<any[]>(subcatsDict).reduce((acc, it) => acc + it.length, 0),
+        sub_categories: formattedSubcats
+      };
+    }
+
+    res.json({
+      success: true,
+      totalItems: cachedFlatMaterials.length,
+      categories: formattedHierarchy
+    });
+  });
+
+  // Categories Summary
+  app.get('/api/categories', (req, res) => {
+    res.json({
+      success: true,
+      totalItems: cachedFlatMaterials.length,
+      categories: cachedCategoriesSummary
+    });
+  });
+
+  // Materials with on-demand filtering
+  app.get('/api/materials', (req, res) => {
+    let results = [...cachedFlatMaterials];
+    const category = req.query.category as string | undefined;
+    const subcategory = req.query.subcategory as string | undefined;
+    const search = req.query.search as string | undefined;
+    const isNew = req.query.is_new as string | undefined;
+    const fireRetardant = req.query.fire_retardant as string | undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+
+    if (category && category.toLowerCase() !== 'all') {
+      results = results.filter(m => m.category.toLowerCase() === category.toLowerCase());
+    }
+
+    if (subcategory && subcategory.toLowerCase() !== 'all') {
+      results = results.filter(m => m.subCategory.toLowerCase() === subcategory.toLowerCase());
+    }
+
+    if (isNew !== undefined) {
+      const bNew = isNew === 'true';
+      results = results.filter(m => m.isNew === bNew);
+    }
+
+    if (fireRetardant !== undefined) {
+      const bFire = fireRetardant === 'true';
+      results = results.filter(m => m.isFireRetardant === bFire);
+    }
+
+    if (search) {
+      const s = search.trim().toLowerCase();
+      results = results.filter(m =>
+        m.name.toLowerCase().includes(s) ||
+        m.code.toLowerCase().includes(s) ||
+        m.sku.toLowerCase().includes(s) ||
+        m.categoryName.toLowerCase().includes(s) ||
+        m.subCategoryName.toLowerCase().includes(s) ||
+        m.finish.toLowerCase().includes(s)
+      );
+    }
+
+    const totalMatches = results.length;
+    const paginated = limit ? results.slice(offset, offset + limit) : results.slice(offset);
+
+    res.json({
+      success: true,
+      total: totalMatches,
+      count: paginated.length,
+      materials: paginated
+    });
+  });
+
+  // Individual Material Detail
+  app.get('/api/materials/:code_or_sku', (req, res) => {
+    const target = req.params.code_or_sku.trim().toLowerCase();
+    const found = cachedFlatMaterials.find(m =>
+      m.code.toLowerCase() === target ||
+      m.sku.toLowerCase() === target ||
+      m.id === target
+    );
+    if (!found) {
+      return res.status(404).json({ error: `Material '${req.params.code_or_sku}' not found` });
+    }
+    res.json({ success: true, material: found });
   });
 
   // API 2: Upload Space Photo

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Material } from '../types';
-import { Sparkles, Sun, RotateCw, CheckCircle, Truck, Layers, X, ArrowRight } from 'lucide-react';
+import { Sparkles, Sun, RotateCw, Layers, X, ArrowRight } from 'lucide-react';
 
 interface PbrModalProps {
   material: Material | null;
@@ -17,7 +17,6 @@ export const PbrModal: React.FC<PbrModalProps> = ({
 }) => {
   const [lightAngle, setLightAngle] = useState(45);
   const [isRotating, setIsRotating] = useState(false);
-  const [sampleOrdered, setSampleOrdered] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,11 +33,6 @@ export const PbrModal: React.FC<PbrModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen || !material) return null;
-
-  const handleOrderSample = () => {
-    setSampleOrdered(true);
-    setTimeout(() => setSampleOrdered(false), 3000);
-  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 lg:p-10">
@@ -230,32 +224,10 @@ export const PbrModal: React.FC<PbrModalProps> = ({
                   onApplyInStudio(material);
                   onClose();
                 }}
-                className="flex-grow px-5 py-3 bg-[#38bdf8] hover:bg-[#8ed5ff] text-[#00354a] rounded-xl font-semibold text-sm shadow-lg shadow-[#38bdf8]/20 hover:shadow-[#38bdf8]/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                className="w-full px-5 py-3 bg-[#38bdf8] hover:bg-[#8ed5ff] text-[#00354a] rounded-xl font-semibold text-sm shadow-lg shadow-[#38bdf8]/20 hover:shadow-[#38bdf8]/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
               >
                 <Layers className="w-4 h-4" />
                 <span>Try in Studio</span>
-              </button>
-
-              <button
-                onClick={handleOrderSample}
-                className={`px-4 py-3 rounded-xl border transition-all flex items-center justify-center gap-1.5 text-xs font-medium ${
-                  sampleOrdered
-                    ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300'
-                    : 'bg-[#141c24] hover:bg-[#2d363e] border-[#3e484f]/60 text-[#dae3ee]'
-                }`}
-                title="Order Sample Swatch Packet"
-              >
-                {sampleOrdered ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 text-emerald-400" />
-                    <span>Ordered</span>
-                  </>
-                ) : (
-                  <>
-                    <Truck className="w-4 h-4" />
-                    <span className="hidden sm:inline">Sample</span>
-                  </>
-                )}
               </button>
             </div>
           </div>

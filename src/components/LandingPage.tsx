@@ -41,11 +41,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // Interactive 3-step feature showcase live tab
   const [activeFeatureStep, setActiveFeatureStep] = useState<number>(0);
 
-  // Specific reel materials as requested: Mono Blanc, Origin Oak, Calacatta Marble, Carbon Weave, Brushed Metal
-  const reelSkus = ['PZ330', 'SPW-01', 'RM001', 'CF800', 'MT311'];
-  const reelMaterials = reelSkus
-    .map(sku => MATERIALS.find(m => m.sku === sku))
-    .filter((m): m is Material => Boolean(m));
+  // Real catalogue style showcase items
+  const reelSkus = ['OGW01', 'BLC01', 'PM003', 'SPW01', 'SMT01'];
+  const reelMaterials = (reelSkus
+    .map(sku => MATERIALS.find(m => m.sku.toUpperCase() === sku.toUpperCase() || m.code.toUpperCase() === sku.toUpperCase()))
+    .filter((m): m is Material => Boolean(m)).length > 0)
+    ? reelSkus
+        .map(sku => MATERIALS.find(m => m.sku.toUpperCase() === sku.toUpperCase() || m.code.toUpperCase() === sku.toUpperCase()))
+        .filter((m): m is Material => Boolean(m))
+    : MATERIALS.slice(0, 5);
 
   const handleUploadReady = (space: SpaceImage) => {
     setPendingSpace(space);

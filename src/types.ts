@@ -1,53 +1,72 @@
-export type CategoryId = 
-  | 'architectural-woods'
-  | 'stone-marble'
-  | 'monochrome-solids'
-  | 'metallic-finishes'
-  | 'carbon-fiber';
+export type CategoryId = string;
+export type SubCategoryId = string;
 
-export type SubCategoryId = 
-  | 'all-woods'
-  | 'oak-ash'
-  | 'walnut-teak'
-  | 'exotic-grains'
-  | 'all-stone'
-  | 'calacatta'
-  | 'granite'
-  | 'all-solids'
-  | 'super-matt'
-  | 'gloss'
-  | 'all-metals'
-  | 'brushed'
-  | 'all-carbon';
+export interface CategorySummary {
+  id: string;
+  name: string;
+  count: number;
+  subCategories: {
+    id: string;
+    name: string;
+    count: number;
+  }[];
+}
 
 export interface PbrSpecs {
   roughness: number; // 0.0 to 1.0
   specular: number; // 0.0 to 1.0
   normalMap: string; // e.g. "Deep Emboss", "Micro Texture", "Polished Smooth"
-  grainDirection: 'Vertical' | 'Horizontal' | 'Omni-directional';
-  thickness: string; // e.g. "0.2mm (8 mil)"
+  grainDirection: 'Vertical' | 'Horizontal' | 'Omni-directional' | string;
+  thickness: string; // e.g. "0.2mm - 0.45mm"
   rollWidth: string; // e.g. "1220mm (48\")"
   adhesive: string; // e.g. "Air-Release Comply™"
   fireRating?: string; // e.g. "Class A / ASTM E84"
   durabilityYears?: number;
 }
 
+export interface MaterialFeatures {
+  is_new?: boolean;
+  fire_retardant?: boolean;
+  general?: boolean;
+  Vertical?: boolean;
+  'Half-grain'?: boolean;
+  'wood-grain'?: boolean;
+  [key: string]: boolean | undefined;
+}
+
+export interface RawRenderParams {
+  grain_direction?: string;
+  repeat_seamless?: boolean;
+  scale_factor?: number;
+  roughness?: number;
+  reflectivity?: number;
+  bump_intensity?: number;
+}
+
 export interface Material {
   id: string;
+  code: string;
   sku: string;
   name: string;
+  page?: number;
   category: CategoryId;
   categoryName: string;
   subCategory: SubCategoryId;
   subCategoryName: string;
-  finish: 'Super Matt' | 'Textured' | 'Satin' | 'High Gloss' | 'Matte Grain' | 'Brushed';
-  tags: string[];
+  finish: string;
+  finishType?: string;
+  tags?: string[];
   description: string;
-  imageUrl: string;
-  macroUrl: string;
+  imageUrl: string; // MUST only be the clean {code}.jpg visible picture
+  macroUrl?: string;
+  diffuseMapPath?: string;
+  bumpMapPath?: string;
+  normalMapPath?: string;
   colorHex: string;
-  colorVariations: { hex: string; name: string }[];
+  colorVariations?: { hex: string; name: string }[];
   pbr: PbrSpecs;
+  features?: MaterialFeatures;
+  renderParams?: RawRenderParams;
   isNew?: boolean;
   isPremium?: boolean;
   isFireRetardant?: boolean;

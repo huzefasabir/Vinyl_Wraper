@@ -18,26 +18,26 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
   const [roomVibe, setRoomVibe] = useState('Japandi Organic Minimal');
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<any>({
-    designTheme: 'Japandi Organic Harmony',
+    designTheme: 'Architectural Biophilic Contrast',
     paletteMood:
-      'Warm natural ash wood grains balanced by anti-fingerprint chalk white solids and polished Calacatta veining.',
-    recommendedSkus: ['SPW-01', 'PZ330', 'RM001'],
+      'Warm optical oak wood grains balanced by anti-fingerprint chalk white solids and polished premium marble accents.',
+    recommendedSkus: ['OGW01', 'BLC01', 'PM003'],
     zonePairings: [
       {
         zone: 'Upper Wall Cabinets',
-        material: 'Japanese Ash Select (SPW-01)',
-        finish: 'Super Matt',
-        why: 'Deeply embossed micro-grain adds natural warmth without distracting specular glare under direct downlights.'
+        material: 'Noble Oak (OGW01)',
+        finish: 'Wood Grain',
+        why: 'Deeply embossed optical grain adds natural warmth without distracting specular glare under direct downlights.'
       },
       {
         zone: 'Waterfall Island Countertop',
-        material: 'Calacatta Gloss (RM001)',
-        finish: 'High Gloss',
+        material: 'Premium Marble (PM003)',
+        finish: 'Stone & Marble',
         why: 'Creates a focal architectural centerpiece with continuous veining and self-healing thermal topcoat.'
       },
       {
         zone: 'Base Storage Units',
-        material: 'Mono Blanc Matte (PZ330)',
+        material: 'Mono Blanc (BLC01)',
         finish: 'Super Matt Solids',
         why: 'Zero-reflection anti-fingerprint surface provides seamless horizontal grounding.'
       }
@@ -68,8 +68,14 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
   };
 
   const handleApplyToStudio = () => {
-    const matched = suggestion.recommendedSkus
-      .map((sku: string) => MATERIALS.find((m) => m.sku === sku))
+    const matched = (suggestion.recommendedSkus || [])
+      .map((sku: string) =>
+        MATERIALS.find(
+          (m) =>
+            m.sku.toLowerCase() === sku.toLowerCase() ||
+            m.code.toLowerCase() === sku.toLowerCase()
+        )
+      )
       .filter(Boolean) as Material[];
 
     if (matched.length > 0) {
