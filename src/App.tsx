@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
 import { LeftStudioToolbar } from './components/LeftStudioToolbar';
@@ -12,6 +12,8 @@ import { AiAdvisorModal } from './components/AiAdvisorModal';
 import { PRESET_SPACES } from './data/presetSpaces';
 import { MATERIALS } from './data/materialsData';
 import { SpaceImage, SpaceSegment, Material, RenderParameters, StudioTool, SubNavSection } from './types';
+import { VisionSegmentationResult, pollVolkaStatus } from './services/api';
+import { log } from './services/logger';
 
 export default function App() {
   // Navigation
@@ -23,28 +25,28 @@ export default function App() {
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(
     PRESET_SPACES[0].segments[0]?.id || null
   );
-  const [activeTargetComponent, setActiveTargetComponent] = useState<string>('Kitchen Cabinets');
+  const [activeTargetComponent, setActiveTargetComponent] = useState<string>('');
 
   // Selected Material & Shader Parameters
   const [selectedMaterial, setSelectedMaterial] = useState<Material>(MATERIALS[0]);
   const [renderParameters, setRenderParameters] = useState<RenderParameters>({
     grainDirection: 0,
-    roughness: 82,
-    reflectivity: 15,
+    roughness: 80,
+    reflectivity: 20,
     textureScale: 1.0,
     ambientLight: 85
   });
 
   // Active Studio Tools & Sub-nav
-  const [activeTool, setActiveTool] = useState<StudioTool>('layers');
+  const [activeTool, setActiveTool] = useState<StudioTool>('select');
   const [activeSubSection, setActiveSubSection] = useState<SubNavSection>('layers');
 
   // History stack for Undo / Redo
-  const [history, setHistory] = useState<SpaceSegment[][]>([PRESET_SPACES[0].segments]);
+  const [history, setHistory] = useState<SpaceSegment[][]>([[...PRESET_SPACES[0].segments]]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
   // Modals state
-  const [inspectedMaterial, setInspectedMaterial] = useState<Material | null>(null);
+  const [inspectedMaterial, setInspectedMaterial] = useState<Material>(MATERIALS[0]);
   const [isPbrModalOpen, setIsPbrModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isAdvisorModalOpen, setIsAdvisorModalOpen] = useState(false);
@@ -52,18 +54,72 @@ export default function App() {
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Polling ref for active Volka HF job
+  const volkaPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopVolkaPolling = () => {
+    if (volkaPollingRef.current !== null) {
+      clearInterval(volkaPollingRef.current);
+      volkaPollingRef.current = null;
+    }
+  };
+
+  // Start polling when currentSpace has a pending volka job
+  useEffect(() => {
+    const jobId = currentSpace.volkaJobId;
+    const status = currentSpace.volkaStatus;
+
+    if (!jobId || status !== 'pending') {
+      stopVolkaPolling();
+      return;
+    }
+
+    log.hf('App:polling', `Starting poll loop — job_id: ${jobId}`);
+
+    volkaPollingRef.current = setInterval(async () => {
+      try {
+        log.poll('App:polling', `GET /api/volka-status/${jobId}`);
+        const res = await pollVolkaStatus(jobId);
+        log.poll('App:polling', `status=${res.status}`, res);
+
+        if (res.status === 'done' && res.hfSegmentedImage) {
+          stopVolkaPolling();
+          log.ok('App:polling', `Job ${jobId} DONE — updating canvas image`);
+          setCurrentSpace(prev => ({
+            ...prev,
+            hfSegmentedImage: res.hfSegmentedImage,
+            previewImage: res.hfSegmentedImage,
+            volkaStatus: 'done',
+          }));
+          showToast('HF Space segmentation complete — preview updated');
+        } else if (res.status === 'error') {
+          stopVolkaPolling();
+          log.error('App:polling', `Job ${jobId} ERROR: ${res.error}`);
+          setCurrentSpace(prev => ({ ...prev, volkaStatus: 'error' }));
+          showToast('HF Space processing encountered an error');
+        }
+      } catch (err) {
+        log.warn('App:polling', 'Poll request failed', err);
+      }
+    }, 3000);
+
+    return () => stopVolkaPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSpace.volkaJobId, currentSpace.volkaStatus]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   // Push new state to history
-  const pushHistory = (newSegments: SpaceSegment[]) => {
-    const updatedHistory = history.slice(0, historyIndex + 1);
-    updatedHistory.push(newSegments);
-    setHistory(updatedHistory);
-    setHistoryIndex(updatedHistory.length - 1);
-  };
+  const pushHistory = useCallback((newSegments: SpaceSegment[]) => {
+    setHistory((prev) => {
+      const upToCurrent = prev.slice(0, historyIndex + 1);
+      return [...upToCurrent, newSegments];
+    });
+    setHistoryIndex((prev) => prev + 1);
+  }, [historyIndex]);
 
   // Undo / Redo handlers
   const handleUndo = () => {
@@ -94,20 +150,55 @@ export default function App() {
     showToast(`Loaded ${space.title}`);
   };
 
-  // Post-upload target confirm flow: Sets space & target component, routes directly to catalog
-  const handleConfirmTargetAndProceed = (space: SpaceImage, targetName: string) => {
-    setCurrentSpace(space);
+  // Post-upload target confirm flow: stores job_id, sets space, navigates immediately to catalog
+  const handleConfirmTargetAndProceed = async (
+    space: SpaceImage,
+    targetName: string,
+    jobId?: string,
+    visionResult?: VisionSegmentationResult
+  ) => {
+    log.info('App:flow', `Target confirmed: "${targetName}" | job_id: ${jobId ?? 'none'}`);
+
+    const spaceWithJob: SpaceImage = {
+      ...space,
+      volkaJobId: jobId,
+      volkaStatus: jobId ? 'pending' : 'idle',
+    };
+
+    setCurrentSpace(spaceWithJob);
     setActiveTargetComponent(targetName);
 
-    // If segment exists with matching or generic name, configure it
-    const matchingSeg = space.segments.find(s => s.name.toLowerCase().includes(targetName.toLowerCase())) || space.segments[0];
-    setSegments(space.segments);
-    setSelectedSegmentId(matchingSeg?.id || null);
-    setHistory([space.segments]);
+    const slug = targetName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const userSegment: SpaceSegment = {
+      id: `seg-${slug}-target`,
+      name: targetName,
+      confidence: 1.0,
+      boundingBox: { x: 0.05, y: 0.05, width: 0.9, height: 0.9 },
+      pathCoordinates: [
+        { x: 0.05, y: 0.05 },
+        { x: 0.95, y: 0.05 },
+        { x: 0.95, y: 0.95 },
+        { x: 0.05, y: 0.95 },
+      ],
+      areaPercentage: 81,
+    };
+
+    const initialSegments: SpaceSegment[] = [userSegment];
+    setSegments(initialSegments);
+    setSelectedSegmentId(userSegment.id);
+    setHistory([initialSegments]);
     setHistoryIndex(0);
 
-    showToast(`Target Set: "${targetName}" • Opening Vinyl Library`);
+    if (jobId) {
+      log.hf('App:flow', `HF job ${jobId} running in background — navigating to catalog`);
+      showToast(`"${targetName}" sent to HF Space — processing while you pick a vinyl style`);
+    }
+
     setCurrentView('catalog');
+  };
+
+  const handleDetectCustomComponent = async (_query: string) => {
+    // AI Vision Locate removed — no-op
   };
 
   // Apply material to a specific zone
@@ -178,7 +269,9 @@ export default function App() {
         {currentView === 'landing' && (
           <LandingPage
             onSelectSpace={handleSelectSpace}
-            onConfirmTargetAndProceed={handleConfirmTargetAndProceed}
+            onConfirmTargetAndProceed={(space, targetName, jobId, visionResult) =>
+              handleConfirmTargetAndProceed(space, targetName, jobId, visionResult)
+            }
             onNavigateToStudio={() => setCurrentView('visualizer')}
             onNavigateToCatalog={() => setCurrentView('catalog')}
             onOpenSpecsModal={handleOpenSpecsModal}
@@ -216,6 +309,17 @@ export default function App() {
               onQuickApplyMaterial={handleQuickApplyMaterial}
               onNavigateToCatalog={() => setCurrentView('catalog')}
               onOpenSpecsModal={handleOpenSpecsModal}
+              volkaStatus={currentSpace.volkaStatus}
+              onCvRenderComplete={(compositeDataUrl) => {
+                // CV pipeline succeeded — replace the HF preview with the
+                // photorealistic composited result so the canvas shows it
+                setCurrentSpace((prev) => ({
+                  ...prev,
+                  hfSegmentedImage: compositeDataUrl,
+                  previewImage:     compositeDataUrl,
+                }));
+                showToast('CV render complete — photorealistic vinyl wrap applied');
+              }}
             />
 
             {/* Right Inspector & Materials Library Panel */}
@@ -233,6 +337,7 @@ export default function App() {
           <MaterialCatalog
             activeSpace={currentSpace}
             targetComponent={activeTargetComponent}
+            volkaStatus={currentSpace.volkaStatus}
             onChangeTargetOrSpace={() => setCurrentView('landing')}
             onSelectMaterialForStudio={(mat) => {
               handleQuickApplyMaterial(mat);

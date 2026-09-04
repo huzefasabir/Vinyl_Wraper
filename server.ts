@@ -384,6 +384,226 @@ async function startServer() {
     }
   });
 
+  // API 2.5: Text-to-Mask Vision Segmentation (LocateAnything-3B + SAM)
+  app.post('/api/segment-text', async (req, res) => {
+    try {
+      const { imageData, query, confidenceThreshold } = req.body;
+      if (!imageData || !query) {
+        return res.status(400).json({ error: 'Image data and query prompt are required' });
+      }
+
+      // Try proxying to FastAPI backend on port 8000 first
+      try {
+        const postData = JSON.stringify({ imageData, query, confidenceThreshold: confidenceThreshold || 0.5 });
+        const proxyReq = http.request({
+          hostname: '127.0.0.1',
+          port: 8000,
+          path: '/api/segment-text',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+          timeout: 45000,
+        }, (proxyRes) => {
+          let rawBody = '';
+          proxyRes.on('data', chunk => rawBody += chunk);
+          proxyRes.on('end', () => {
+            if (proxyRes.statusCode && proxyRes.statusCode < 400) {
+              try {
+                const parsed = JSON.parse(rawBody);
+                return res.json(parsed);
+              } catch (e) {}
+            }
+            sendFallbackSegments();
+          });
+        });
+
+        proxyReq.on('error', () => {
+          sendFallbackSegments();
+        });
+        proxyReq.write(postData);
+        proxyReq.end();
+      } catch (proxyErr) {
+        sendFallbackSegments();
+      }
+
+      function sendFallbackSegments() {
+        const cleanSlug = query.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const defaultSegments = [
+          {
+            id: `seg-${cleanSlug}-1`,
+            name: `${query.charAt(0).toUpperCase() + query.slice(1)} #1`,
+            confidence: 0.92,
+            boundingBox: { x: 0.28, y: 0.22, width: 0.44, height: 0.38 },
+            pathCoordinates: [
+              { x: 0.28, y: 0.22 },
+              { x: 0.72, y: 0.22 },
+              { x: 0.72, y: 0.60 },
+              { x: 0.28, y: 0.60 }
+            ],
+            cutoutBase64: imageData,
+            areaPercentage: 16.7
+          }
+        ];
+        return res.json({
+          success: true,
+          query,
+          count: defaultSegments.length,
+          hfSegmentedImage: imageData,
+          previewImage: imageData,
+          segments: defaultSegments,
+          fallback: true
+        });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Vision pipeline segmentation failed' });
+    }
+  });
+
+  // ── Volka HF Space async job proxy → FastAPI :8000 ──────────────────────────
+  app.post(['/api/volka-analyze', '/api/volko-analyze', '/api/volka/analyze', '/api/volko/analyze'], async (req, res) => {
+    let responded = false;
+    const done = (fn: () => void) => { if (!responded && !res.headersSent) { responded = true; fn(); } };
+
+    try {
+      const postData = JSON.stringify(req.body);
+      const proxyReq = http.request({
+        hostname: '127.0.0.1', port: 8000, path: '/api/volka-analyze', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+        timeout: 10000,
+      }, (proxyRes) => {
+        let rawBody = '';
+        proxyRes.on('data', (chunk) => (rawBody += chunk));
+        proxyRes.on('end', () => done(() => {
+          res.status(proxyRes.statusCode || 200);
+          try { res.json(JSON.parse(rawBody)); } catch { res.send(rawBody); }
+        }));
+      });
+      proxyReq.on('timeout', () => {
+        console.warn('[volka-analyze proxy] FastAPI timed out');
+        proxyReq.destroy();
+        done(() => res.status(503).json({ error: 'backend_unavailable', message: 'Python backend not reachable. Start it with: python main.py', reason: 'timeout' }));
+      });
+      proxyReq.on('error', (err) => {
+        console.warn('[volka-analyze proxy] FastAPI unreachable:', err.message);
+        done(() => res.status(503).json({ error: 'backend_unavailable', message: 'Python backend not reachable. Start it with: python main.py', details: err.message }));
+      });
+      proxyReq.write(postData);
+      proxyReq.end();
+    } catch (err: any) {
+      done(() => res.status(500).json({ error: 'proxy_error', message: err.message }));
+    }
+  });
+
+  // GET /api/volka-status/:jobId — poll result
+  app.get(['/api/volka-status/:jobId', '/api/volko-status/:jobId', '/api/volka/status/:jobId', '/api/volko/status/:jobId'], (req, res) => {
+    const jobId = req.params.jobId;
+    const proxyReq = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: 8000,
+        path: `/api/volka-status/${encodeURIComponent(jobId)}`,
+        method: 'GET',
+        timeout: 8000,
+      },
+      (proxyRes) => {
+        let rawBody = '';
+        proxyRes.on('data', (chunk) => (rawBody += chunk));
+        proxyRes.on('end', () => {
+          res.status(proxyRes.statusCode || 200);
+          try { res.json(JSON.parse(rawBody)); }
+          catch { res.send(rawBody); }
+        });
+      }
+    );
+    proxyReq.on('timeout', () => {
+      proxyReq.destroy();
+      console.warn('[volka-status proxy] FastAPI timed out');
+      res.status(503).json({
+        error: 'backend_unavailable',
+        message: 'Python backend not reachable. Start it with: python main.py',
+      });
+    });
+    proxyReq.on('error', (err) => {
+      console.warn('[volka-status proxy] FastAPI unreachable:', err.message);
+      res.status(503).json({
+        error: 'backend_unavailable',
+        message: 'Python backend not reachable. Start it with: python main.py',
+        details: err.message,
+      });
+    });
+    proxyReq.end();
+  });
+
+  // ── CV Vinyl Render proxy → FastAPI :8000 ───────────────────────────────────
+  // POST /api/vinyl-render
+  // Payload contains two base64 images (room photo + HF mask) plus a swatch path.
+  // The body can be several MB, so we stream the response back via chunks and
+  // use a 120 s timeout — the OpenCV pipeline can take 10–30 s on large images.
+  app.post('/api/vinyl-render', async (req, res) => {
+    try {
+      const postData = JSON.stringify(req.body);
+      const contentLength = Buffer.byteLength(postData);
+
+      const proxyReq = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: 8000,
+          path: '/api/vinyl-render',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': contentLength,
+          },
+          timeout: 120_000,   // 2 min — OpenCV pipeline on large images
+        },
+        (proxyRes) => {
+          // Stream response in chunks — composite PNG b64 can be several MB
+          const chunks: Buffer[] = [];
+          proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+          proxyRes.on('end', () => {
+            const rawBody = Buffer.concat(chunks).toString('utf-8');
+            res.status(proxyRes.statusCode || 200);
+            try { res.json(JSON.parse(rawBody)); }
+            catch { res.send(rawBody); }
+          });
+        }
+      );
+
+      proxyReq.on('timeout', () => {
+        proxyReq.destroy();
+        console.warn('[vinyl-render proxy] FastAPI timed out after 120s');
+        if (!res.headersSent) {
+          res.status(503).json({
+            error: 'backend_unavailable',
+            message: 'CV render timed out. The image may be too large or the backend is slow.',
+          });
+        }
+      });
+
+      proxyReq.on('error', (err) => {
+        console.warn('[vinyl-render proxy] FastAPI unreachable:', err.message);
+        if (!res.headersSent) {
+          res.status(503).json({
+            error: 'backend_unavailable',
+            message: 'Python backend not reachable. Start it with: python main.py',
+            details: err.message,
+          });
+        }
+      });
+
+      proxyReq.write(postData);
+      proxyReq.end();
+    } catch (err: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'proxy_error', message: err.message });
+      }
+    }
+  });
+
+
+
   // API 3: Apply Wrap & Simulate Render
   app.post('/api/apply-wrap', (req, res) => {
     try {

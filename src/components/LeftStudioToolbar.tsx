@@ -1,21 +1,5 @@
 import React from 'react';
-import {
-  Layers,
-  Paintbrush,
-  Eraser,
-  LassoSelect,
-  RotateCcw,
-  RotateCw,
-  UploadCloud,
-  Sliders,
-  Palette,
-  SunMedium,
-  Grid,
-  ChevronRight,
-  Eye,
-  Trash2,
-  Lock
-} from 'lucide-react';
+import { RotateCcw, RotateCw } from 'lucide-react';
 import { StudioTool, SubNavSection, SpaceSegment } from '../types';
 
 interface LeftStudioToolbarProps {
@@ -45,7 +29,7 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
   onExport,
   segments,
   selectedSegmentId,
-  onSelectSegment
+  onSelectSegment,
 }) => {
   return (
     <aside className="w-64 lg:w-72 bg-[#0b141c] border-r border-[#3e484f]/40 flex h-full select-none">
@@ -121,52 +105,63 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
             </button>
           </div>
 
-          {/* Surface Zones feature commented out as per requirement */}
-          {/*
+          {/* Extracted Components (Vision Pipeline) */}
           {activeSection === 'layers' && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
+              {/* Components List Header */}
               <div className="flex items-center justify-between px-1">
                 <span className="text-[10px] font-mono text-[#87929a] uppercase tracking-wider">
-                  Surface Zones
+                  Extracted Surfaces ({segments.length})
                 </span>
               </div>
 
-              <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto pr-1">
+              {/* Components List */}
+              <div className="flex flex-col gap-1.5 max-h-[340px] overflow-y-auto pr-1">
                 {segments.map((seg) => {
                   const isSelected = selectedSegmentId === seg.id;
                   return (
                     <div
                       key={seg.id}
                       onClick={() => onSelectSegment(seg.id)}
-                      className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${
+                      className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border ${
                         isSelected
-                          ? 'bg-[#182028] border-[#38bdf8]/60 text-[#38bdf8]'
-                          : 'bg-[#141c24]/80 border-transparent hover:border-[#3e484f]/40 text-[#dae3ee]'
+                          ? 'bg-[#182028] border-[#38bdf8] text-[#38bdf8] shadow-sm shadow-[#38bdf8]/10'
+                          : 'bg-[#141c24]/90 border-[#3e484f]/30 hover:border-[#38bdf8]/40 text-[#dae3ee]'
                       }`}
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
                         <div
-                          className="w-3.5 h-3.5 rounded border border-[#3e484f] flex-shrink-0"
+                          className="w-4 h-4 rounded-md border border-[#3e484f] flex-shrink-0"
                           style={{
-                            backgroundColor: seg.appliedMaterial?.colorHex || '#38bdf8'
+                            backgroundColor: seg.appliedMaterial?.colorHex || '#222b33'
                           }}
                         />
                         <div className="flex flex-col truncate">
-                          <span className="text-xs font-medium truncate">{seg.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold truncate text-[#dae3ee]">{seg.name}</span>
+                            {seg.confidence && (
+                              <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1 rounded">
+                                {Math.round(seg.confidence * 100)}%
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] font-mono text-[#87929a] truncate">
-                            {seg.appliedMaterial?.name || 'Default Surface'}
+                            {seg.appliedMaterial ? `${seg.appliedMaterial.sku} (${seg.appliedMaterial.name})` : 'Ready to wrap'}
                           </span>
                         </div>
                       </div>
 
-                      <Eye className="w-3.5 h-3.5 text-[#87929a] group-hover:text-[#dae3ee] flex-shrink-0" />
+                      {seg.appliedMaterial ? (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                      ) : (
+                        <span className="text-[10px] font-mono text-[#87929a] group-hover:text-[#38bdf8] shrink-0">Select</span>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
-          */}
 
           {activeSection === 'environment' && (
             <div className="p-3 bg-[#141c24] rounded-lg border border-[#3e484f]/30 flex flex-col gap-3">

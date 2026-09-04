@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Heart, Sparkles, Eye, ArrowRight, Edit3, Flame, Check } from 'lucide-react';
-import { Material, SpaceImage, CategorySummary } from '../types';
+import { Search, Heart, Sparkles, Eye, ArrowRight, Edit3, Flame, Check, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Material, SpaceImage, CategorySummary, VolkaJobStatus } from '../types';
 import { MATERIALS as DEFAULT_MATERIALS, CATEGORIES as DEFAULT_CATEGORIES, SUB_CATEGORIES as DEFAULT_SUB_CATEGORIES } from '../data/materialsData';
 import { fetchCategories, fetchMaterials } from '../services/api';
 
@@ -10,6 +10,7 @@ interface MaterialCatalogProps {
   onChangeTargetOrSpace?: () => void;
   onSelectMaterialForStudio: (material: Material) => void;
   onOpenSpecsModal: (material: Material) => void;
+  volkaStatus?: VolkaJobStatus;
 }
 
 export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
@@ -17,7 +18,8 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
   targetComponent = 'Kitchen Cabinets',
   onChangeTargetOrSpace,
   onSelectMaterialForStudio,
-  onOpenSpecsModal
+  onOpenSpecsModal,
+  volkaStatus,
 }) => {
   const [categories, setCategories] = useState<CategorySummary[]>(DEFAULT_CATEGORIES);
   const [materials, setMaterials] = useState<Material[]>(DEFAULT_MATERIALS);
@@ -115,23 +117,79 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
 
   return (
     <div className="min-h-screen bg-[#0b141c] text-[#dae3ee] pt-18 pb-20 px-4 sm:px-8 max-w-7xl mx-auto">
+      {/* 4-Step Flow Progress Bar */}
+      <div className="mb-6 p-3 sm:p-4 rounded-2xl bg-[#141c24] border border-[#3e484f]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-emerald-400">
+          <Check className="w-4 h-4" />
+          <span className="font-semibold">1. Image Upload</span>
+        </div>
+        <span className="text-[#3e484f] hidden sm:inline">→</span>
+        <div className="flex items-center gap-2 text-emerald-400">
+          <Check className="w-4 h-4" />
+          <span className="font-semibold">2. Target: {targetComponent}</span>
+        </div>
+        <span className="text-[#3e484f] hidden sm:inline">→</span>
+        <div className="flex items-center gap-2 text-[#38bdf8] font-bold bg-[#182028] px-3 py-1 rounded-lg border border-[#38bdf8]/40 shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-[#38bdf8] animate-pulse" />
+          <span>3. Select Vinyl Style</span>
+        </div>
+        <span className="text-[#3e484f] hidden sm:inline">→</span>
+        <div className="flex items-center gap-2 text-[#87929a]">
+          <span>4. Visualizer Preview</span>
+        </div>
+      </div>
+
+      {/* ── HF Space status banner ─────────────────────────────────────────── */}
+      {volkaStatus === 'pending' && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-[#38bdf8]/8 border border-[#38bdf8]/30 text-xs">
+          <Loader2 className="w-4 h-4 text-[#38bdf8] animate-spin flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-[#38bdf8]">Segmentation running in background</span>
+            <span className="text-[#87929a] ml-2">
+              Volkopat/SegmentAnythingxGroundingDINO is processing <span className="text-[#dae3ee] font-mono">"{targetComponent}"</span> — pick a vinyl style while you wait.
+            </span>
+          </div>
+          <div className="w-24 h-1 bg-[#222b33] rounded-full overflow-hidden flex-shrink-0">
+            <div className="h-full w-full bg-gradient-to-r from-[#38bdf8]/40 via-[#38bdf8] to-[#38bdf8]/40 animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
+          </div>
+        </div>
+      )}
+
+      {volkaStatus === 'done' && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/8 border border-emerald-500/30 text-xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span className="font-semibold text-emerald-400">Segmentation complete</span>
+          <span className="text-[#87929a]">— the segmented image is ready in the visualizer.</span>
+        </div>
+      )}
+
+      {volkaStatus === 'error' && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/30 text-xs">
+          <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+          <span className="font-semibold text-red-400">Segmentation failed</span>
+          <span className="text-[#87929a]">— the original image will be used in the visualizer. Check that the Python backend is running.</span>
+        </div>
+      )}
+
       {/* 1. Active Project Context Banner */}
       <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-[#141c24] via-[#182028] to-[#141c24] border border-[#38bdf8]/40 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="relative w-16 h-12 rounded-lg overflow-hidden bg-[#0b141c] shrink-0 border border-[#3e484f]">
+          <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-[#0b141c] shrink-0 border border-[#3e484f] shadow-inner">
             <img
-              src={activeSpace?.thumbnailUrl || activeSpace?.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA'}
+              src={activeSpace?.hfSegmentedImage || activeSpace?.previewImage || activeSpace?.thumbnailUrl || activeSpace?.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA'}
               alt="Active Space Preview"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 ring-1 ring-inset ring-[#38bdf8]/50" />
+            {activeSpace?.hfSegmentedImage && (
+              <div className="absolute inset-0 ring-2 ring-inset ring-emerald-400/60" />
+            )}
           </div>
 
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-[11px] font-mono uppercase tracking-wider text-[#38bdf8] font-bold">
-                Active Session
+                {activeSpace?.hfSegmentedImage ? 'Hugging Face Grounded-SAM Segmented' : 'Active Target Surface'}
               </span>
             </div>
             <div className="text-xs sm:text-sm text-[#dae3ee]">

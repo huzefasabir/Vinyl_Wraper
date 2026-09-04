@@ -15,13 +15,14 @@ import {
 } from 'lucide-react';
 import { DropZone } from './DropZone';
 import { TargetSurfaceModal } from './TargetSurfaceModal';
-import { SpaceImage, Material } from '../types';
+import { SpaceImage, SpaceSegment, Material } from '../types';
 import { MATERIALS } from '../data/materialsData';
 import { PRESET_SPACES } from '../data/presetSpaces';
+import { VisionSegmentationResult } from '../services/api';
 
 interface LandingPageProps {
   onSelectSpace: (space: SpaceImage) => void;
-  onConfirmTargetAndProceed: (space: SpaceImage, targetName: string) => void;
+  onConfirmTargetAndProceed: (space: SpaceImage, targetName: string, jobId?: string, visionResult?: VisionSegmentationResult) => void;
   onNavigateToStudio: () => void;
   onNavigateToCatalog: () => void;
   onOpenSpecsModal: (material: Material) => void;
@@ -56,10 +57,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setIsTargetModalOpen(true);
   };
 
-  const handleConfirmTarget = (targetName: string) => {
+  const handleConfirmTarget = (targetName: string, jobId?: string, visionResult?: VisionSegmentationResult) => {
     if (pendingSpace) {
       setIsTargetModalOpen(false);
-      onConfirmTargetAndProceed(pendingSpace, targetName);
+      onConfirmTargetAndProceed(pendingSpace, targetName, jobId, visionResult);
     }
   };
 

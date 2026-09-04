@@ -14,7 +14,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-upper-cabinets',
         name: 'Upper Wall Cabinets',
-        defaultMaterialSku: 'SPW-01',
         boundingBox: { x: 0.35, y: 0.22, width: 0.38, height: 0.28 },
         pathCoordinates: [
           { x: 0.35, y: 0.22 },
@@ -33,7 +32,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-island-countertop',
         name: 'Waterfall Island Countertop',
-        defaultMaterialSku: 'RM001',
         boundingBox: { x: 0.48, y: 0.52, width: 0.28, height: 0.38 },
         pathCoordinates: [
           { x: 0.48, y: 0.52 },
@@ -52,7 +50,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-base-units',
         name: 'Base Storage Units',
-        defaultMaterialSku: 'SPW-14',
         boundingBox: { x: 0.32, y: 0.58, width: 0.22, height: 0.32 },
         pathCoordinates: [
           { x: 0.32, y: 0.58 },
@@ -71,7 +68,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-backsplash',
         name: 'Slab Backsplash',
-        defaultMaterialSku: 'PZ330',
         boundingBox: { x: 0.36, y: 0.48, width: 0.36, height: 0.12 },
         pathCoordinates: [
           { x: 0.36, y: 0.48 },
@@ -101,7 +97,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-vanity-cabinet',
         name: 'Floating Vanity Body',
-        defaultMaterialSku: 'SPW-22',
         boundingBox: { x: 0.25, y: 0.55, width: 0.50, height: 0.30 },
         renderParameters: {
           grainDirection: 90,
@@ -114,7 +109,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-vanity-top',
         name: 'Calacatta Vanity Top',
-        defaultMaterialSku: 'RM001',
         boundingBox: { x: 0.25, y: 0.50, width: 0.50, height: 0.08 },
         renderParameters: {
           grainDirection: 0,
@@ -138,7 +132,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-desk-top',
         name: 'Executive Desktop Surface',
-        defaultMaterialSku: 'SPW-08',
         boundingBox: { x: 0.20, y: 0.60, width: 0.60, height: 0.25 },
         renderParameters: {
           grainDirection: 90,
@@ -151,7 +144,6 @@ export const PRESET_SPACES: SpaceImage[] = [
       {
         id: 'seg-back-credenza',
         name: 'Rear Modular Storage',
-        defaultMaterialSku: 'CF800',
         boundingBox: { x: 0.15, y: 0.25, width: 0.70, height: 0.35 },
         renderParameters: {
           grainDirection: 0,

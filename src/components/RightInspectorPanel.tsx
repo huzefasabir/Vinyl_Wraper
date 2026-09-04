@@ -123,7 +123,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             Wrap Shader Parameters
           </span>
 
-          {/* Grain Direction */}
+          {/* Grain Direction — user-adjustable */}
           <div className="flex items-center justify-between text-xs">
             <span className="text-[#bdc8d1]">Grain Angle</span>
             <div className="flex gap-1 bg-[#182028] p-0.5 rounded-md border border-[#3e484f]/40">
@@ -160,45 +160,63 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             </div>
           </div>
 
-          {/* Roughness Slider */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-[#bdc8d1]">Roughness</span>
-              <span className="font-mono text-xs text-[#38bdf8]">
-                {renderParameters.roughness}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={renderParameters.roughness}
-              onChange={(e) =>
-                onChangeParameters({ ...renderParameters, roughness: Number(e.target.value) })
-              }
-              className="w-full h-1.5 bg-[#222b33] rounded-lg appearance-none cursor-pointer accent-[#38bdf8]"
-            />
-          </div>
+          {/* Roughness — read-only, derived from selected material's PBR */}
+          {(() => {
+            const matRoughness = Math.round((selectedMaterial.pbr?.roughness ?? 0.8) * 100);
+            return (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#bdc8d1]">Roughness</span>
+                    <span className="text-[9px] font-mono text-[#3e484f] bg-[#182028] border border-[#3e484f]/40 px-1.5 py-0.5 rounded select-none">
+                      MATERIAL
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs text-[#38bdf8]">{matRoughness}%</span>
+                </div>
+                <div className="relative pointer-events-none select-none">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    readOnly
+                    value={matRoughness}
+                    onChange={() => {}}
+                    className="w-full h-1.5 bg-[#222b33] rounded-lg appearance-none accent-[#38bdf8] opacity-70 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
-          {/* Reflectivity Slider */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-[#bdc8d1]">Reflectivity</span>
-              <span className="font-mono text-xs text-[#38bdf8]">
-                {renderParameters.reflectivity}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={renderParameters.reflectivity}
-              onChange={(e) =>
-                onChangeParameters({ ...renderParameters, reflectivity: Number(e.target.value) })
-              }
-              className="w-full h-1.5 bg-[#222b33] rounded-lg appearance-none cursor-pointer accent-[#38bdf8]"
-            />
-          </div>
+          {/* Reflectivity — read-only, derived from selected material's PBR */}
+          {(() => {
+            const matReflectivity = Math.round((selectedMaterial.pbr?.specular ?? 0.2) * 100);
+            return (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#bdc8d1]">Reflectivity</span>
+                    <span className="text-[9px] font-mono text-[#3e484f] bg-[#182028] border border-[#3e484f]/40 px-1.5 py-0.5 rounded select-none">
+                      MATERIAL
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs text-[#38bdf8]">{matReflectivity}%</span>
+                </div>
+                <div className="relative pointer-events-none select-none">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    readOnly
+                    value={matReflectivity}
+                    onChange={() => {}}
+                    className="w-full h-1.5 bg-[#222b33] rounded-lg appearance-none accent-[#38bdf8] opacity-70 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
