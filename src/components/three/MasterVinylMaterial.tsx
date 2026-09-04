@@ -64,7 +64,7 @@ function VinylMaterialLoader({ vinyl, children }: LoaderProps) {
     if (bumpUrl)    m.bump    = bumpUrl;
     if (normalUrl)  m.normal  = normalUrl;
     // Fallback: use the visible swatch image when no PBR maps exist
-    if (!diffuseUrl) m.diffuse = vinyl.imageUrl;
+    if (!diffuseUrl && vinyl.imageUrl) m.diffuse = vinyl.imageUrl;
     return m;
   }, [diffuseUrl, bumpUrl, normalUrl, vinyl.imageUrl]);
 
@@ -76,10 +76,12 @@ function VinylMaterialLoader({ vinyl, children }: LoaderProps) {
   const TILE = (vinyl.renderParams?.scale_factor ?? 1) * 2;
 
   for (const tex of Object.values(textures)) {
-    tex.wrapS      = THREE.RepeatWrapping;
-    tex.wrapT      = THREE.RepeatWrapping;
-    tex.repeat.set(TILE, TILE);
-    tex.needsUpdate = true;
+    if (tex) {
+      tex.wrapS      = THREE.RepeatWrapping;
+      tex.wrapT      = THREE.RepeatWrapping;
+      tex.repeat.set(TILE, TILE);
+      tex.needsUpdate = true;
+    }
   }
 
   // ── Grain rotation on the diffuse map ────────────────────────────────────
@@ -96,19 +98,19 @@ function VinylMaterialLoader({ vinyl, children }: LoaderProps) {
       map:          textures.diffuse  ?? null,
       roughnessMap: textures.bump     ?? null,
       normalMap:    textures.normal   ?? null,
-      roughness:    vinyl.pbr.roughness,
-      metalness:    vinyl.pbr.specular * 0.25,
+      roughness:    vinyl.pbr?.roughness ?? 0.55,
+      metalness:    (vinyl.pbr?.specular ?? 0.15) * 0.25,
       transparent:  true,
       opacity:      0.88,
       side:         THREE.FrontSide,
       depthWrite:   false,   // prevent depth artifacts on flat overlay geometry
     });
-    mat.color.set(vinyl.colorHex);
+    if (vinyl.colorHex) mat.color.set(vinyl.colorHex);
     return mat;
   // textures object identity changes when maps reload — that's the correct signal
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textures.diffuse, textures.bump, textures.normal,
-      vinyl.colorHex, vinyl.pbr.roughness, vinyl.pbr.specular]);
+      vinyl.colorHex, vinyl.pbr?.roughness, vinyl.pbr?.specular]);
 
   const ctxValue = useMemo<VinylCtxValue>(
     () => ({ material, tileRepeat: TILE }),

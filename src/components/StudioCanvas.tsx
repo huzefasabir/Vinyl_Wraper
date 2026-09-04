@@ -54,10 +54,11 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 }) => {
   const [zoom, setZoom] = useState(1);
   const [showOverlays, setShowOverlays] = useState(false);
-  // Default to 'extracted' — shows HF segmented image; 'full' shows original upload
-  const [displayMode, setDisplayMode] = useState<'full' | 'extracted'>('extracted');
+  // Default to 'wrapped' — shows wrapped/segmented room image; 'original' shows original upload photo
+  const [displayMode, setDisplayMode] = useState<'original' | 'wrapped'>('wrapped');
   const [compareMode, setCompareMode] = useState<'single' | 'split'>('single');
   const [splitPos, setSplitPos] = useState(50);
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
   const [isHoveringSegment, setIsHoveringSegment] = useState<string | null>(null);
   const [brushStrokes, setBrushStrokes] = useState<{ x: number; y: number }[]>([]);
   const [isPainting, setIsPainting] = useState(false);
@@ -67,67 +68,89 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   // 'rendering' → CV pipeline running (spinner on button)
   // 'done'      → composited CV image displayed
   // 'error'     → pipeline failed, WebGL PBR fallback shown
+  // ── Wrap state ────────────────────────────────────────────────────────────
+  // 'idle'      → clean HF image preview, no wrap
+  // 'rendering' → CV pipeline running (spinner on button)
+  // 'done'      → composited CV image displayed
+  // 'error'     → pipeline failed, WebGL PBR fallback shown
   const [cvRenderStatus, setCvRenderStatus] = useState<'idle' | 'rendering' | 'done' | 'error'>('idle');
   const [wrapApplied, setWrapApplied]       = useState(false);
   const [cvErrorMsg, setCvErrorMsg]         = useState<string>('');
 
+  // Preserve original HF Grounded-SAM segmentation mask image for repeated CV renders
+  const originalMaskRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (space.hfSegmentedImage && cvRenderStatus === 'idle') {
+      originalMaskRef.current = space.hfSegmentedImage;
+    }
+  }, [space.hfSegmentedImage, cvRenderStatus]);
+
   /**
    * handleApplyWrap
    * ───────────────
-   * 1. Batch-applies selectedMaterial to every segment (drives WebGL fallback)
+   * 1. Applies targetMaterial to every segment & updates active selectedMaterial in App.
    * 2. Calls the OpenCV CV pipeline via POST /api/vinyl-render:
    *      base image   = space.imageUrl  (original room photo)
-   *      mask image   = space.hfSegmentedImage  (Grounded-SAM output)
-   *      vinyl swatch = selectedMaterial.diffuseMapPath || imageUrl
+   *      mask image   = originalMaskRef.current || space.hfSegmentedImage  (Grounded-SAM output)
+   *      vinyl swatch = targetMaterial.diffuseMapPath || imageUrl
    * 3. On success: calls onCvRenderComplete with the composited PNG so
    *    App.tsx can update currentSpace.hfSegmentedImage → canvas re-renders
    * 4. On failure: falls back to the WebGL PBR overlay (wrapApplied=true)
    */
-  const handleApplyWrap = async () => {
+  const handleApplyWrap = async (targetMaterial: Material = selectedMaterial) => {
     if (cvRenderStatus === 'rendering') return;
 
-    // Step 1: batch-apply material to all segments immediately
-    // This activates the WebGL fallback path in case CV pipeline is unavailable
-    segments.forEach((seg) => onApplyMaterialToSegment(seg.id, selectedMaterial));
+    prevMaterialIdRef.current = targetMaterial.id;
+
+    // Apply target material to the selected segment only
+    const targetSegmentId = selectedSegmentId || segments[0]?.id;
+    if (targetSegmentId) {
+      onApplyMaterialToSegment(targetSegmentId, targetMaterial);
+    }
+    if (targetMaterial.id !== selectedMaterial.id) {
+      onQuickApplyMaterial(targetMaterial);
+    }
     setWrapApplied(true);
-    setDisplayMode('extracted');
+    setDisplayMode('wrapped');
     setCvRenderStatus('rendering');
     setCvErrorMsg('');
 
-    log.hf('StudioCanvas', `Apply Wrap: CV pipeline — vinyl=${selectedMaterial.sku}  mask=${space.hfSegmentedImage ? 'ready' : 'none'}`);
+    const activeSeg = segments.find((s) => s.id === (selectedSegmentId || segments[0]?.id));
+    const maskImageData = activeSeg?.maskBase64 || originalMaskRef.current || space.hfSegmentedImage;
+
+    log.hf('StudioCanvas', `Apply Wrap: CV pipeline — target=${activeSeg?.name ?? 'surface'} vinyl=${targetMaterial.sku} mask=${maskImageData ? 'ready' : 'none'}`);
 
     // Require both the original image and the HF mask to run the CV pipeline
-    if (!space.hfSegmentedImage) {
+    if (!maskImageData) {
       log.warn('StudioCanvas', 'No HF mask image available — using WebGL PBR fallback');
       setCvRenderStatus('error');
       setCvErrorMsg('No segmentation mask — using WebGL preview');
       return;
     }
 
-    // Build all swatch paths from the selected material
-    // Paths come in as "images/wood/optical-grain/OGW01_diffuse.jpg" — strip leading "images/"
+    // Build all swatch paths from the target material
     const stripImages = (p?: string) =>
       p ? p.replace(/^images\//, '').replace(/^storage_data\/images\//, '') : undefined;
 
-    const diffusePath = stripImages(selectedMaterial.diffuseMapPath);
-    const bumpPath    = stripImages(selectedMaterial.bumpMapPath);
-    const normalPath  = stripImages(selectedMaterial.normalMapPath);
-    // imageUrl is "/api/images/wood/optical-grain/OGW01.jpg" — strip the /api/images/ prefix
-    const swatchPath  = selectedMaterial.imageUrl.replace(/^\/api\/images\//, '');
+    const diffusePath = stripImages(targetMaterial?.diffuseMapPath) ||
+      (targetMaterial?.imageUrl ? targetMaterial.imageUrl.replace(/^\/api\/images\//, '').replace(/\.jpg$/i, '_diffuse.jpg') : undefined);
+    const bumpPath    = stripImages(targetMaterial?.bumpMapPath);
+    const normalPath  = stripImages(targetMaterial?.normalMapPath);
+    const swatchPath  = targetMaterial?.imageUrl ? targetMaterial.imageUrl.replace(/^\/api\/images\//, '') : '';
 
-    // PBR render params derived from the selected material
+    // PBR render params derived from the target material
     const renderParams = {
-      grain_direction: selectedMaterial.renderParams?.grain_direction ?? 'vertical',
-      scale_factor:    selectedMaterial.renderParams?.scale_factor    ?? 1.0,
-      roughness:       selectedMaterial.pbr.roughness,
-      reflectivity:    selectedMaterial.pbr.specular,
-      bump_intensity:  selectedMaterial.renderParams?.bump_intensity  ?? 1.0,
+      grain_direction: targetMaterial.renderParams?.grain_direction ?? 'vertical',
+      scale_factor:    targetMaterial.renderParams?.scale_factor    ?? 1.0,
+      roughness:       targetMaterial.pbr?.roughness                ?? 0.55,
+      reflectivity:    targetMaterial.pbr?.specular                 ?? 0.15,
+      bump_intensity:  targetMaterial.renderParams?.bump_intensity  ?? 1.0,
     };
 
     try {
       const result = await renderVinylWrap({
         baseImageData:   space.imageUrl,
-        maskImageData:   space.hfSegmentedImage,
+        maskImageData:   maskImageData,
         diffuseMapPath:  diffusePath,
         swatchImagePath: swatchPath,
         bumpMapPath:     bumpPath,
@@ -139,7 +162,6 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       if (result.success && result.compositeImage) {
         log.ok('StudioCanvas', `CV render done in ${result.render_stats?.elapsed_ms ?? '?'}ms`);
         setCvRenderStatus('done');
-        // Push composited image back to App.tsx → replaces hfSegmentedImage → canvas shows result
         onCvRenderComplete?.(result.compositeImage);
       } else {
         throw new Error('CV pipeline returned no composite image');
@@ -149,9 +171,32 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       log.error('StudioCanvas', `CV pipeline error: ${msg}`);
       setCvRenderStatus('error');
       setCvErrorMsg(msg);
-      // WebGL PBR fallback remains active (wrapApplied is already true)
     }
   };
+
+  // Auto-trigger vinyl wrap render on initial HF completion, material change, segment change, or missing wrap
+  const prevSegmentIdRef  = useRef<string | null>(selectedSegmentId);
+  const prevMaterialIdRef = useRef<string>(selectedMaterial.id);
+  const autoAppliedJobRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const activeSeg = segments.find((s) => s.id === (selectedSegmentId || segments[0]?.id));
+    const maskAvailable = activeSeg?.maskBase64 || originalMaskRef.current || space.hfSegmentedImage;
+    if (!maskAvailable || volkaStatus === 'pending') return;
+
+    const segmentChanged   = prevSegmentIdRef.current !== selectedSegmentId;
+    const materialChanged  = prevMaterialIdRef.current !== selectedMaterial.id;
+    const currentJobKey    = space.volkaJobId || space.id;
+    const hfJobCompleted   = volkaStatus === 'done' && autoAppliedJobRef.current !== currentJobKey;
+    const needsInitialWrap = !wrapApplied && cvRenderStatus === 'idle';
+
+    if (materialChanged || hfJobCompleted || needsInitialWrap || (segmentChanged && activeSeg?.appliedMaterial)) {
+      prevSegmentIdRef.current  = selectedSegmentId;
+      prevMaterialIdRef.current = selectedMaterial.id;
+      autoAppliedJobRef.current = currentJobKey;
+      handleApplyWrap(selectedMaterial);
+    }
+  }, [selectedMaterial, selectedSegmentId, segments, space.hfSegmentedImage, space.volkaJobId, space.id, volkaStatus, wrapApplied, cvRenderStatus]);
 
   // Strip materials from all segments, return to clean HF image preview
   const handleClearWrap = () => {
@@ -167,29 +212,37 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   // Track the image src that is currently painted so we force re-draws on change
   const paintedSrcRef = useRef<string>('');
 
-  // Related styles: 4 materials from the same category as selectedMaterial,
-  // excluding the currently selected one. Falls back to first 4 if none found.
+  // Related styles: materials arranged by sub-category matching selectedMaterial.
+  // When user selects a material (e.g. Origin Wood), shows materials from that sub-category.
   const relatedStyles = React.useMemo(() => {
+    const targetSubCat = selectedMaterial.subCategory;
+    const targetSubCatName = selectedMaterial.subCategoryName?.toLowerCase();
+
+    const sameSub = MATERIALS.filter((m) => {
+      if (m.id === selectedMaterial.id) return false;
+      if (targetSubCat && m.subCategory === targetSubCat) return true;
+      if (targetSubCatName && m.subCategoryName && m.subCategoryName.toLowerCase() === targetSubCatName) return true;
+      return false;
+    });
+
+    if (sameSub.length >= 4) return sameSub;
+
+    // Fallback: fill with parent category if sub-category has very few items
     const sameCat = MATERIALS.filter(
       (m) => m.category === selectedMaterial.category && m.id !== selectedMaterial.id
     );
-    return sameCat.length >= 4 ? sameCat.slice(0, 4) : sameCat;
-  }, [selectedMaterial.category, selectedMaterial.id]);
+    const combined = [...sameSub, ...sameCat.filter((m) => !sameSub.some((s) => s.id === m.id))];
+    return combined;
+  }, [selectedMaterial.subCategory, selectedMaterial.subCategoryName, selectedMaterial.category, selectedMaterial.id]);
 
   // Selected segment object
   const activeSegment = segments.find((s) => s.id === selectedSegmentId) || segments[0];
 
-  // Always prefer the HF segmented image once it arrives; fall back to original upload.
-  // When volkaStatus is 'pending' we intentionally skip painting so the loader
-  // is the ONLY thing visible (no flicker of the original image underneath).
-  // ── 2D canvas (Full Room mode only) ─────────────────────────────────────
   const hfImage   = space.hfSegmentedImage ?? null;
   const isPending = volkaStatus === 'pending';
-  // Full Room → original upload; Extracted → handled by RoomVisualizer
-  const baseImageSrc = hfImage || space.imageUrl;
-  // In full-room mode we still skip painting while HF is pending in extracted mode
-  // (user hasn't switched to full yet so there's nothing to show)
-  const showLoader = isPending && displayMode === 'extracted';
+  // Original Room -> original uploaded space.imageUrl; Wrapped Room -> hfImage or composite render
+  const baseImageSrc = displayMode === 'original' ? space.imageUrl : (hfImage || space.imageUrl);
+  const showLoader = isPending && displayMode === 'wrapped';
 
   // Core paint function — takes an already-loaded HTMLImageElement so we avoid
   // the async onload problem (stale closure / cached-image-no-onload).
@@ -208,7 +261,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       canvas.height = DISPLAY_H;
 
       // ── background ───────────────────────────────────────────────────────
-      if (displayMode === 'extracted') {
+      if (displayMode === 'wrapped') {
         const bgGrad = ctx.createRadialGradient(
           DISPLAY_W / 2, DISPLAY_H / 2, 50,
           DISPLAY_W / 2, DISPLAY_H / 2, Math.max(DISPLAY_W, DISPLAY_H)
@@ -409,31 +462,31 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
           <div className="h-4 w-px bg-[#3e484f]/40 mx-1 hidden sm:block" />
 
-          {/* Mode Switch: Full Space vs Extracted Component */}
+          {/* Mode Switch: Original Room vs Wrapped Room */}
           <div className="hidden sm:flex items-center bg-[#182028] p-0.5 rounded-lg border border-[#3e484f]/40 text-xs">
             <button
-              onClick={() => setDisplayMode('full')}
+              onClick={() => setDisplayMode('original')}
               className={`px-2.5 py-1 rounded-md transition-all ${
-                displayMode === 'full'
+                displayMode === 'original'
                   ? 'bg-[#38bdf8] text-[#00354a] font-semibold'
                   : 'text-[#bdc8d1] hover:text-[#dae3ee]'
               }`}
-              title="Show the original uploaded image"
+              title="Show original room image"
             >
-              Full Room
+              Original Room
             </button>
             <button
-              onClick={() => setDisplayMode('extracted')}
+              onClick={() => setDisplayMode('wrapped')}
               className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                displayMode === 'extracted'
+                displayMode === 'wrapped'
                   ? 'bg-[#38bdf8] text-[#00354a] font-semibold'
                   : 'text-[#bdc8d1] hover:text-[#dae3ee]'
               }`}
-              title="Show HF Space segmented result"
+              title="Show wrapped room visualizer"
             >
               <Sparkles className="w-3 h-3" />
-              <span>Extracted Component</span>
-              {isPending && displayMode !== 'extracted' && (
+              <span>Wrapped Room</span>
+              {isPending && displayMode !== 'wrapped' && (
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" title="Processing..." />
               )}
             </button>
@@ -469,46 +522,6 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
         {/* Right: Viewport Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-
-          {/* ── APPLY WRAP / CLEAR WRAP ─────────────────────────────────── */}
-          {!wrapApplied ? (
-            <button
-              onClick={handleApplyWrap}
-              disabled={volkaStatus === 'pending' || cvRenderStatus === 'rendering'}
-              title={`Apply ${selectedMaterial.name} via CV pipeline to all ${segments.length} surface(s)`}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[#38bdf8] hover:bg-[#7dd3fc] disabled:opacity-40 text-[#00354a] font-bold text-xs transition-all shadow-lg shadow-[#38bdf8]/25 select-none"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Apply Wrap</span>
-              <span className="font-mono opacity-80 text-[10px]">{selectedMaterial.sku}</span>
-            </button>
-          ) : cvRenderStatus === 'rendering' ? (
-            /* CV pipeline running */
-            <button
-              disabled
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[#182028] border border-[#38bdf8]/40 text-[#38bdf8] font-semibold text-xs select-none opacity-90 cursor-not-allowed"
-            >
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Rendering CV…</span>
-            </button>
-          ) : (
-            /* Wrap active — show Clear button with status icon */
-            <button
-              onClick={handleClearWrap}
-              title="Remove vinyl wrap and return to HF preview"
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#222b33] hover:bg-[#2d363e] border border-[#38bdf8]/40 text-[#38bdf8] font-semibold text-xs transition-all select-none"
-            >
-              {cvRenderStatus === 'done'
-                ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                : cvRenderStatus === 'error'
-                ? <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                : <X className="w-3.5 h-3.5" />
-              }
-              <span>Clear Wrap</span>
-            </button>
-          )}
-
-          <div className="h-4 w-px bg-[#3e484f]/40 hidden sm:block" />
 
           {/* Overlay Toggle */}
           <button
@@ -558,28 +571,88 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       {/* 2. Main Viewport Area */}
       <div
         ref={viewportRef}
-        onMouseDown={handleCanvasMouseDown}
-        onMouseMove={handleCanvasMouseMove}
-        onMouseUp={handleCanvasMouseUp}
-        className="flex-1 relative flex items-center justify-center p-4 sm:p-6 overflow-hidden"
+        onMouseDown={(e) => {
+          if (compareMode === 'split') {
+            setIsDraggingSplit(true);
+            if (viewportRef.current) {
+              const rect = viewportRef.current.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+              setSplitPos(pct);
+            }
+          } else {
+            handleCanvasMouseDown(e);
+          }
+        }}
+        onMouseMove={(e) => {
+          if (compareMode === 'split' && isDraggingSplit && viewportRef.current) {
+            const rect = viewportRef.current.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+            setSplitPos(pct);
+          } else {
+            handleCanvasMouseMove(e);
+          }
+        }}
+        onMouseUp={() => {
+          setIsDraggingSplit(false);
+          handleCanvasMouseUp();
+        }}
+        className="flex-1 relative flex items-center justify-center p-4 sm:p-6 overflow-hidden select-none"
       >
         <div
           className="relative max-w-5xl w-full aspect-video rounded-2xl overflow-hidden shadow-2xl border border-[#3e484f]/60 bg-[#0b141c] flex items-center justify-center group"
           style={{ transform: `scale(${zoom})`, transition: 'transform 0.15s ease-out' }}
         >
-          {/*
-           * RENDERING STRATEGY
-           * ──────────────────
-           * Extracted mode  →  <RoomVisualizer>
-           *   • 2D <img> base layer (hfSegmentedImage or imageUrl)
-           *   • Transparent R3F WebGL canvas on top with PBR vinyl meshes
-           *   • Shows HF loader when volkaStatus==='pending'
-           *
-           * Full Room mode  →  plain 2D <canvas> (letterbox-rendered)
-           *   • Faster, no WebGL overhead
-           *   • Useful for checking original photo without segments
-           */}
-          {displayMode === 'extracted' ? (
+          {compareMode === 'split' ? (
+            /* ── SPLIT COMPARISON MODE: ORIGINAL PHOTO vs RENDER ─────────── */
+            <div className="relative w-full h-full overflow-hidden select-none">
+              {/* Right/Bottom Layer: Wrapped Vinyl Render */}
+              <div className="absolute inset-0 w-full h-full">
+                <RoomVisualizer
+                  imageUrl={space.imageUrl}
+                  hfSegmentedImage={space.hfSegmentedImage}
+                  displayMode="wrapped"
+                  segments={segments}
+                  selectedSegmentId={selectedSegmentId}
+                  selectedMaterial={selectedMaterial}
+                  volkaStatus={volkaStatus}
+                  cvRenderStatus={cvRenderStatus}
+                  wrapApplied={wrapApplied}
+                  className="w-full h-full"
+                />
+              </div>
+
+              {/* Left/Top Layer: Original Uploaded Picture (Clipped) */}
+              <div
+                className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none"
+                style={{ clipPath: `polygon(0 0, ${splitPos}% 0, ${splitPos}% 100%, 0 100%)` }}
+              >
+                <img
+                  src={space.imageUrl}
+                  alt="Original room photo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              {/* Draggable Divider Line & Handle */}
+              <div
+                className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center -translate-x-1/2"
+                style={{ left: `${splitPos}%` }}
+              >
+                <div className="w-0.5 h-full bg-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.9)]" />
+                <div className="absolute w-8 h-8 rounded-full bg-[#0b141c] border-2 border-[#38bdf8] text-[#38bdf8] shadow-lg flex items-center justify-center text-xs">
+                  <ArrowRightLeft className="w-4 h-4" />
+                </div>
+              </div>
+
+              {/* View Badges */}
+              <div className="absolute top-3 left-3 z-20 bg-[#0b141c]/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-mono text-[#dae3ee] border border-[#3e484f]/40 pointer-events-none shadow-md">
+                Original Photo
+              </div>
+              <div className="absolute top-3 right-3 z-20 bg-[#0b141c]/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-mono text-[#38bdf8] font-bold border border-[#38bdf8]/40 pointer-events-none shadow-md">
+                Vinyl Render
+              </div>
+            </div>
+          ) : displayMode === 'wrapped' ? (
             <RoomVisualizer
               imageUrl={space.imageUrl}
               hfSegmentedImage={space.hfSegmentedImage}
@@ -731,15 +804,27 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
               {/* Apply CTA Button */}
               <button
-                onClick={() => {
-                  if (activeSegment) {
-                    onApplyMaterialToSegment(activeSegment.id, item);
-                  }
-                  onQuickApplyMaterial(item);
-                }}
-                className="w-full py-1 rounded-md bg-[#182028] hover:bg-[#38bdf8] hover:text-[#00354a] text-[#dae3ee] text-xs font-semibold border border-[#3e484f]/40 hover:border-[#38bdf8] transition-all"
+                onClick={() => handleApplyWrap(item)}
+                disabled={cvRenderStatus === 'rendering'}
+                className={`w-full py-1 rounded-md text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
+                  selectedMaterial.id === item.id && wrapApplied
+                    ? 'bg-[#38bdf8] text-[#00354a] border-[#38bdf8]'
+                    : 'bg-[#182028] hover:bg-[#38bdf8] hover:text-[#00354a] text-[#dae3ee] border-[#3e484f]/40 hover:border-[#38bdf8]'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Apply
+                {cvRenderStatus === 'rendering' && selectedMaterial.id === item.id ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Applying…</span>
+                  </>
+                ) : selectedMaterial.id === item.id && wrapApplied ? (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-[#00354a]" />
+                    <span>Applied</span>
+                  </>
+                ) : (
+                  <span>Apply</span>
+                )}
               </button>
             </div>
           ))}

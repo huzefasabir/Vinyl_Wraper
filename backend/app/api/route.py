@@ -573,9 +573,22 @@ def _resolve_swatch_path(
     diffuse_map_path: Optional[str],
     swatch_image_path: Optional[str],
 ) -> Optional[Path]:
-    """Resolve a vinyl swatch to an absolute Path. Tries diffuse first, then swatch."""
+    """Resolve a vinyl swatch to an absolute Path. Prioritizes pure _diffuse texture image if available."""
     prefixes = ["api/images/", "storage_data/images/", "images/"]
-    for p in [diffuse_map_path, swatch_image_path]:
+    
+    raw_paths = []
+    if diffuse_map_path:
+        raw_paths.append(diffuse_map_path)
+    if swatch_image_path:
+        clean_swatch = swatch_image_path.replace("\\", "/").lstrip("/")
+        if not clean_swatch.endswith("_diffuse.jpg") and not clean_swatch.endswith("_diffuse.png"):
+            if clean_swatch.endswith(".jpg"):
+                raw_paths.append(clean_swatch[:-4] + "_diffuse.jpg")
+            elif clean_swatch.endswith(".png"):
+                raw_paths.append(clean_swatch[:-4] + "_diffuse.png")
+        raw_paths.append(swatch_image_path)
+
+    for p in raw_paths:
         if not p:
             continue
         clean = p.replace("\\", "/").lstrip("/")

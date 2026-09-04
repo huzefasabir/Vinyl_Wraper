@@ -9,10 +9,11 @@ import { ProjectsView } from './components/ProjectsView';
 import { PbrModal } from './components/PbrModal';
 import { ExportModal } from './components/ExportModal';
 import { AiAdvisorModal } from './components/AiAdvisorModal';
+import { TargetSurfaceModal } from './components/TargetSurfaceModal';
 import { PRESET_SPACES } from './data/presetSpaces';
 import { MATERIALS } from './data/materialsData';
 import { SpaceImage, SpaceSegment, Material, RenderParameters, StudioTool, SubNavSection } from './types';
-import { VisionSegmentationResult, pollVolkaStatus } from './services/api';
+import { VisionSegmentationResult, pollVolkaStatus, startVolkaAnalysis } from './services/api';
 import { log } from './services/logger';
 
 export default function App() {
@@ -21,10 +22,8 @@ export default function App() {
 
   // Active space, segments & target component
   const [currentSpace, setCurrentSpace] = useState<SpaceImage>(PRESET_SPACES[0]);
-  const [segments, setSegments] = useState<SpaceSegment[]>(PRESET_SPACES[0].segments);
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(
-    PRESET_SPACES[0].segments[0]?.id || null
-  );
+  const [segments, setSegments] = useState<SpaceSegment[]>([]);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [activeTargetComponent, setActiveTargetComponent] = useState<string>('');
 
   // Selected Material & Shader Parameters
@@ -42,7 +41,7 @@ export default function App() {
   const [activeSubSection, setActiveSubSection] = useState<SubNavSection>('layers');
 
   // History stack for Undo / Redo
-  const [history, setHistory] = useState<SpaceSegment[][]>([[...PRESET_SPACES[0].segments]]);
+  const [history, setHistory] = useState<SpaceSegment[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
   // Modals state
@@ -50,12 +49,14 @@ export default function App() {
   const [isPbrModalOpen, setIsPbrModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isAdvisorModalOpen, setIsAdvisorModalOpen] = useState(false);
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
 
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Polling ref for active Volka HF job
+  // Polling ref for active Volka HF job & retry count
   const volkaPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const volkaRetryCountRef = useRef<number>(0);
 
   const stopVolkaPolling = () => {
     if (volkaPollingRef.current !== null) {
@@ -71,6 +72,7 @@ export default function App() {
 
     if (!jobId || status !== 'pending') {
       stopVolkaPolling();
+      volkaRetryCountRef.current = 0;
       return;
     }
 
@@ -84,19 +86,53 @@ export default function App() {
 
         if (res.status === 'done' && res.hfSegmentedImage) {
           stopVolkaPolling();
+          volkaRetryCountRef.current = 0;
           log.ok('App:polling', `Job ${jobId} DONE — updating canvas image`);
-          setCurrentSpace(prev => ({
+          setSegments((prev) =>
+            prev.map((seg) =>
+              seg.id === selectedSegmentId || seg.name.toLowerCase() === activeTargetComponent.toLowerCase()
+                ? { ...seg, maskBase64: res.hfSegmentedImage }
+                : seg
+            )
+          );
+          setCurrentSpace((prev) => ({
             ...prev,
             hfSegmentedImage: res.hfSegmentedImage,
             previewImage: res.hfSegmentedImage,
             volkaStatus: 'done',
           }));
-          showToast('HF Space segmentation complete — preview updated');
+          showToast('HF Space segmentation complete — generating vinyl preview');
         } else if (res.status === 'error') {
-          stopVolkaPolling();
-          log.error('App:polling', `Job ${jobId} ERROR: ${res.error}`);
-          setCurrentSpace(prev => ({ ...prev, volkaStatus: 'error' }));
-          showToast('HF Space processing encountered an error');
+          volkaRetryCountRef.current += 1;
+          const attempt = volkaRetryCountRef.current;
+          log.error('App:polling', `Job ${jobId} ERROR (Attempt ${attempt}/3): ${res.error}`);
+
+          if (attempt < 3) {
+            showToast(`HF Space processing failed — retrying analysis (${attempt}/3)...`);
+            // Attempt restart
+            try {
+              const retryRes = await startVolkaAnalysis(
+                currentSpace.imageUrl,
+                activeTargetComponent || 'surface',
+                'retry.jpg'
+              );
+              setCurrentSpace((prev) => ({
+                ...prev,
+                volkaJobId: retryRes.job_id,
+                volkaStatus: 'pending',
+              }));
+            } catch (rErr) {
+              log.warn('App:polling', 'Retry submission failed', rErr);
+            }
+          } else {
+            // All 3 attempts failed
+            stopVolkaPolling();
+            setCurrentSpace((prev) => ({ ...prev, volkaStatus: 'error' }));
+            showToast('HF Space segmentation failed after 3 attempts. Please re-upload your image.');
+            setTimeout(() => {
+              setCurrentView('landing');
+            }, 2500);
+          }
         }
       } catch (err) {
         log.warn('App:polling', 'Poll request failed', err);
@@ -105,7 +141,7 @@ export default function App() {
 
     return () => stopVolkaPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSpace.volkaJobId, currentSpace.volkaStatus]);
+  }, [currentSpace.volkaJobId, currentSpace.volkaStatus, activeTargetComponent]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -140,12 +176,12 @@ export default function App() {
     }
   };
 
-  // Load new space
+  // Load new space — reset segments so only user-added target components are shown
   const handleSelectSpace = (space: SpaceImage) => {
     setCurrentSpace(space);
-    setSegments(space.segments);
-    setSelectedSegmentId(space.segments[0]?.id || null);
-    setHistory([space.segments]);
+    setSegments([]);
+    setSelectedSegmentId(null);
+    setHistory([[]]);
     setHistoryIndex(0);
     showToast(`Loaded ${space.title}`);
   };
@@ -159,8 +195,14 @@ export default function App() {
   ) => {
     log.info('App:flow', `Target confirmed: "${targetName}" | job_id: ${jobId ?? 'none'}`);
 
+    const originalImage = space.beforeImageUrl || space.imageUrl;
+    const isSameSpace = currentSpace.id === space.id;
+
     const spaceWithJob: SpaceImage = {
       ...space,
+      imageUrl: originalImage,
+      beforeImageUrl: originalImage,
+      hfSegmentedImage: undefined,
       volkaJobId: jobId,
       volkaStatus: jobId ? 'pending' : 'idle',
     };
@@ -183,11 +225,25 @@ export default function App() {
       areaPercentage: 81,
     };
 
-    const initialSegments: SpaceSegment[] = [userSegment];
-    setSegments(initialSegments);
+    setSegments((prev) => {
+      // If switching to a new room image, start fresh with only this target component
+      if (!isSameSpace || prev.length === 0) {
+        return [userSegment];
+      }
+      // If wrapping another component on the same room image ("Wrap Something Else"), append or update
+      const exists = prev.some(
+        (s) => s.id === userSegment.id || s.name.toLowerCase() === userSegment.name.toLowerCase()
+      );
+      if (exists) {
+        return prev.map((s) =>
+          s.id === userSegment.id || s.name.toLowerCase() === userSegment.name.toLowerCase()
+            ? { ...s, ...userSegment }
+            : s
+        );
+      }
+      return [...prev, userSegment];
+    });
     setSelectedSegmentId(userSegment.id);
-    setHistory([initialSegments]);
-    setHistoryIndex(0);
 
     if (jobId) {
       log.hf('App:flow', `HF job ${jobId} running in background — navigating to catalog`);
@@ -202,16 +258,20 @@ export default function App() {
   };
 
   // Apply material to a specific zone
-  const handleApplyMaterialToSegment = (segmentId: string, material: Material) => {
+  const handleApplyMaterialToSegment = (segmentId: string, material: Material | null) => {
     const nextSegments = segments.map((seg) => {
       if (seg.id === segmentId) {
+        if (!material) {
+          const { appliedMaterial, ...rest } = seg;
+          return rest as SpaceSegment;
+        }
         return {
           ...seg,
           appliedMaterial: material,
           renderParameters: {
             ...seg.renderParameters,
-            roughness: Math.round(material.pbr.roughness * 100),
-            reflectivity: Math.round(material.pbr.specular * 100)
+            roughness: Math.round((material.pbr?.roughness ?? 0.8) * 100),
+            reflectivity: Math.round((material.pbr?.specular ?? 0.2) * 100)
           }
         };
       }
@@ -220,16 +280,19 @@ export default function App() {
 
     setSegments(nextSegments);
     pushHistory(nextSegments);
-    showToast(`Applied ${material.sku} (${material.name}) to ${activeTargetComponent}`);
+    if (material) {
+      showToast(`Applied ${material.sku || material.code} (${material.name}) to ${activeTargetComponent || 'surface'}`);
+    }
   };
 
   // Quick apply material to currently selected zone
   const handleQuickApplyMaterial = (material: Material) => {
+    if (!material) return;
     setSelectedMaterial(material);
     setRenderParameters((prev) => ({
       ...prev,
-      roughness: Math.round(material.pbr.roughness * 100),
-      reflectivity: Math.round(material.pbr.specular * 100)
+      roughness: Math.round((material.pbr?.roughness ?? 0.8) * 100),
+      reflectivity: Math.round((material.pbr?.specular ?? 0.2) * 100)
     }));
 
     if (selectedSegmentId) {
@@ -253,6 +316,32 @@ export default function App() {
   const handleOpenSpecsModal = (material: Material) => {
     setInspectedMaterial(material);
     setIsPbrModalOpen(true);
+  };
+
+  // Switch active surface segment & load its saved wrap / mask / material
+  const handleSelectSegment = (segmentId: string) => {
+    setSelectedSegmentId(segmentId);
+    const targetSeg = segments.find((s) => s.id === segmentId);
+    if (targetSeg) {
+      setActiveTargetComponent(targetSeg.name);
+      if (targetSeg.appliedMaterial) {
+        setSelectedMaterial(targetSeg.appliedMaterial);
+      }
+      if (targetSeg.cutoutBase64) {
+        setCurrentSpace((prev) => ({
+          ...prev,
+          hfSegmentedImage: targetSeg.cutoutBase64,
+          previewImage: targetSeg.cutoutBase64,
+        }));
+      } else if (targetSeg.maskBase64) {
+        setCurrentSpace((prev) => ({
+          ...prev,
+          hfSegmentedImage: targetSeg.maskBase64,
+          previewImage: targetSeg.maskBase64,
+        }));
+      }
+      showToast(`Selected surface: ${targetSeg.name}`);
+    }
   };
 
   return (
@@ -293,7 +382,8 @@ export default function App() {
               onExport={() => setIsExportModalOpen(true)}
               segments={segments}
               selectedSegmentId={selectedSegmentId}
-              onSelectSegment={setSelectedSegmentId}
+              onSelectSegment={handleSelectSegment}
+              onWrapSomethingElse={() => setIsTargetModalOpen(true)}
             />
 
             {/* Central Studio Canvas Viewport */}
@@ -301,7 +391,7 @@ export default function App() {
               space={currentSpace}
               segments={segments}
               selectedSegmentId={selectedSegmentId}
-              onSelectSegment={setSelectedSegmentId}
+              onSelectSegment={handleSelectSegment}
               selectedMaterial={selectedMaterial}
               renderParameters={renderParameters}
               activeTool={activeTool}
@@ -311,14 +401,20 @@ export default function App() {
               onOpenSpecsModal={handleOpenSpecsModal}
               volkaStatus={currentSpace.volkaStatus}
               onCvRenderComplete={(compositeDataUrl) => {
-                // CV pipeline succeeded — replace the HF preview with the
-                // photorealistic composited result so the canvas shows it
+                // CV pipeline succeeded — save composite image and material to segment
+                setSegments((prev) =>
+                  prev.map((seg) =>
+                    seg.id === selectedSegmentId || seg.name.toLowerCase() === activeTargetComponent.toLowerCase()
+                      ? { ...seg, cutoutBase64: compositeDataUrl, appliedMaterial: selectedMaterial }
+                      : seg
+                  )
+                );
                 setCurrentSpace((prev) => ({
                   ...prev,
                   hfSegmentedImage: compositeDataUrl,
                   previewImage:     compositeDataUrl,
                 }));
-                showToast('CV render complete — photorealistic vinyl wrap applied');
+                showToast(`CV render complete — wrapped ${activeTargetComponent || 'surface'}`);
               }}
             />
 
@@ -373,6 +469,18 @@ export default function App() {
         onClose={() => setIsExportModalOpen(false)}
         space={currentSpace}
         segments={segments}
+        displayImage={currentSpace.previewImage || currentSpace.hfSegmentedImage || currentSpace.imageUrl}
+      />
+
+      {/* Target Surface Modal for Wrap Something Else */}
+      <TargetSurfaceModal
+        isOpen={isTargetModalOpen}
+        onClose={() => setIsTargetModalOpen(false)}
+        space={currentSpace}
+        onConfirmTarget={(targetName, jobId, visionResult) => {
+          setIsTargetModalOpen(false);
+          handleConfirmTargetAndProceed(currentSpace, targetName, jobId, visionResult);
+        }}
       />
 
       {/* AI Surface Harmony Stylist Modal */}

@@ -29,6 +29,7 @@
 import React, { Suspense, useRef, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
+import { Sparkles as SparklesIcon, Layers, Loader2 } from 'lucide-react';
 import { SpaceSegment, Material, VolkaJobStatus } from '../../types';
 import { MasterVinylMaterial } from './MasterVinylMaterial';
 import { MaskMesh } from './MaskMesh';
@@ -36,7 +37,7 @@ import { MaskMesh } from './MaskMesh';
 interface RoomVisualizerProps {
   imageUrl:          string;
   hfSegmentedImage?: string;
-  displayMode:       'full' | 'extracted';
+  displayMode:       'original' | 'wrapped';
   segments:          SpaceSegment[];
   selectedSegmentId: string | null;
   selectedMaterial:  Material;
@@ -61,9 +62,9 @@ export function RoomVisualizer({
 }: RoomVisualizerProps) {
 
   // ── Background image source ──────────────────────────────────────────────
-  // Always prefer the HF segmented/annotated image in extracted mode
+  // Prefer HF segmented/annotated image in wrapped mode, original in original mode
   const bgSrc =
-    displayMode === 'extracted' && hfSegmentedImage
+    displayMode === 'wrapped' && hfSegmentedImage
       ? hfSegmentedImage
       : imageUrl;
 
@@ -88,36 +89,50 @@ export function RoomVisualizer({
   // generated the photorealistic composited vinyl image (bgSrc).
   // We unmount the WebGL Three.js overlay canvas so it does not draw a fake WebGL rectangle mesh on top.
   const isCvDone = cvRenderStatus === 'done';
+  const isCvRendering = cvRenderStatus === 'rendering';
   const activeMeshSegments = (wrapApplied && !isCvDone)
     ? segments.filter((s) => !!s.appliedMaterial)
     : [];
 
   // ── Loading state ────────────────────────────────────────────────────────
-  const showLoader = volkaStatus === 'pending' && displayMode === 'extracted';
+  const showLoader = (volkaStatus === 'pending' || isCvRendering) && displayMode === 'wrapped';
 
   return (
     <div className={`relative w-full h-full ${className}`}>
 
       {/* ── Loading overlay ────────────────────────────────────────────── */}
       {showLoader && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-[#060f16]">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-[#060f16]/95 backdrop-blur-md transition-all select-none">
           <div className="relative flex items-center justify-center w-20 h-20">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-[#38bdf8]/15 animate-ping" />
-            <div className="w-14 h-14 rounded-full border-2 border-[#38bdf8]/30 border-t-[#38bdf8] animate-spin" />
-            <Sparkles className="absolute w-5 h-5 text-[#38bdf8] animate-pulse" />
+            <span className="absolute inline-flex h-full w-full rounded-full bg-[#38bdf8]/20 animate-ping" />
+            <div className="w-16 h-16 rounded-full border-4 border-[#38bdf8]/20 border-t-[#38bdf8] animate-spin" />
+            <SparklesIcon className="absolute w-6 h-6 text-[#38bdf8] animate-pulse" />
           </div>
-          <div className="text-center px-6">
-            <p className="text-sm font-semibold text-[#dae3ee] mb-1">Segmenting your image</p>
-            <p className="text-[11px] font-mono text-[#38bdf8]">
-              Volkopat/SegmentAnythingxGroundingDINO
+
+          <div className="text-center px-6 max-w-sm">
+            <h3 className="text-base font-bold text-[#dae3ee] mb-1 tracking-wide">
+              {isCvRendering ? "Wrapping is being done, please wait" : "Segmenting target surfaces..."}
+            </h3>
+            <p className="text-xs font-mono text-[#38bdf8] flex items-center justify-center gap-1.5 mt-1">
+              {isCvRendering ? (
+                <>
+                  <Layers className="w-3.5 h-3.5 inline" />
+                  <span>Applying {selectedMaterial.sku} — {selectedMaterial.name}</span>
+                </>
+              ) : (
+                <span>Grounded-SAM AI detecting room components</span>
+              )}
             </p>
-            <p className="text-[11px] text-[#87929a] mt-1.5">
-              Segmented preview will appear here when ready
+            <p className="text-[11px] text-[#87929a] mt-2">
+              {isCvRendering
+                ? "Synthesizing high-precision vinyl texture maps & lighting..."
+                : "Segmented preview will appear when complete"}
             </p>
           </div>
-          <div className="w-48 h-1 bg-[#222b33] rounded-full overflow-hidden">
-            <div className="h-full w-full bg-gradient-to-r from-[#38bdf8]/40 via-[#38bdf8] to-[#38bdf8]/40
-                            animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
+
+          {/* Shimmer Progress Bar */}
+          <div className="w-56 h-1.5 bg-[#182028] rounded-full overflow-hidden border border-[#3e484f]/40">
+            <div className="h-full w-full bg-gradient-to-r from-[#38bdf8]/20 via-[#38bdf8] to-[#38bdf8]/20 animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
           </div>
         </div>
       )}
@@ -133,16 +148,7 @@ export function RoomVisualizer({
         />
       )}
 
-      {/* ── "Apply Wrap" prompt overlay when no wrap is applied ─────────
-           Visible only when HF image is ready and no wrap active          */}
-      {!showLoader && !wrapApplied && hfSegmentedImage && volkaStatus === 'done' && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <div className="flex items-center gap-2 bg-[#0b141c]/85 backdrop-blur-sm border border-[#38bdf8]/30 rounded-xl px-4 py-2 text-[11px] font-mono text-[#87929a]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>Segmentation ready — press <span className="text-[#38bdf8] font-bold">Apply Wrap</span> to visualise the vinyl</span>
-          </div>
-        </div>
-      )}
+
 
       {/* ── Layer 1: Transparent R3F WebGL overlay (wrapApplied only) ─── */}
       {!showLoader && activeMeshSegments.length > 0 && (

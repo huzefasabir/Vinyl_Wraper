@@ -15,6 +15,7 @@ interface LeftStudioToolbarProps {
   segments: SpaceSegment[];
   selectedSegmentId: string | null;
   onSelectSegment: (id: string) => void;
+  onWrapSomethingElse?: () => void;
 }
 
 export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
@@ -30,6 +31,7 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
   segments,
   selectedSegmentId,
   onSelectSegment,
+  onWrapSomethingElse,
 }) => {
   return (
     <aside className="w-64 lg:w-72 bg-[#0b141c] border-r border-[#3e484f]/40 flex h-full select-none">
@@ -37,11 +39,21 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
       <div className="w-full flex flex-col justify-between p-4 border-r border-[#3e484f]/20">
         <div>
           {/* Section title */}
-          <div className="mb-4">
+          <div className="mb-3">
             <span className="text-[11px] font-mono font-semibold text-[#87929a] uppercase tracking-widest">
               Studio Tools
             </span>
           </div>
+
+          {/* Wrap Something Else Action CTA */}
+          <button
+            onClick={onWrapSomethingElse}
+            className="w-full py-2.5 px-3 bg-[#141c24] hover:bg-[#38bdf8] hover:text-[#00354a] text-[#38bdf8] rounded-xl font-bold text-xs border border-[#38bdf8]/40 hover:border-[#38bdf8] transition-all flex items-center justify-center gap-2 shadow-md mb-4 group"
+            title="Select another surface component in this room photo to wrap"
+          >
+            <span className="material-symbols-outlined text-[18px] group-hover:scale-110 transition-transform">add_circle</span>
+            <span>Wrap Something Else</span>
+          </button>
 
           {/* Sub-nav items */}
           <div className="flex flex-col gap-1.5 mb-6">

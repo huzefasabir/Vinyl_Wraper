@@ -26,15 +26,15 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
 
   const quickChips = [
     'Cabinets',
-    'Countertops',
+    'Countertop',
     'Backsplash',
-    'Wardrobes',
+    'Wardrobe',
     'Accent Wall',
     'Door',
     'Floor',
   ];
 
-  // Main confirm — fires async HF job immediately, does NOT wait for it, proceeds to vinyl selection
+  // Main confirm — fires async HF job immediately with up to 3 attempts
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = componentName.trim();
@@ -43,29 +43,46 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
     log.info('TargetModal', `User confirmed target surface: "${target}"`);
     log.hf('TargetModal', `Firing POST /api/volka-analyze — image: ${space.title}, prompt: "${target}"`);
 
+    const originalPhoto = space.beforeImageUrl || space.imageUrl;
     setIsLaunching(true);
-    setStatusMessage(`Sending image + "${target}" to Hugging Face Space...`);
-
     let jobId: string | undefined;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 3;
 
-    try {
-      const jobRes = await startVolkaAnalysis(
-        space.imageUrl,
-        target,
-        (space.title || 'room').replace(/\s+/g, '_') + '.jpg'
-      );
-      jobId = jobRes.job_id;
-      log.ok('TargetModal', `HF job queued — job_id: ${jobId}`);
-      setStatusMessage(`HF Space job started ✓ — detecting "${target}" in background...`);
-    } catch (err: any) {
-      const msg: string = err?.message ?? 'Unknown error';
-      log.error('TargetModal', `startVolkaAnalysis failed: ${msg}`);
-      // Show the real error — most likely "Python backend is not running"
-      setStatusMessage(`⚠ ${msg}`);
-    } finally {
-      setIsLaunching(false);
+    while (attempt < MAX_ATTEMPTS) {
+      attempt++;
+      try {
+        setStatusMessage(
+          attempt === 1
+            ? `Sending image + "${target}" to Hugging Face Space...`
+            : `Retrying HF Space connection (Attempt ${attempt} of ${MAX_ATTEMPTS})...`
+        );
+        const jobRes = await startVolkaAnalysis(
+          originalPhoto,
+          target,
+          (space.title || 'room').replace(/\s+/g, '_') + '.jpg'
+        );
+        jobId = jobRes.job_id;
+        log.ok('TargetModal', `HF job queued on attempt ${attempt} — job_id: ${jobId}`);
+        setStatusMessage(`HF Space job started ✓ — detecting "${target}" in background...`);
+        break;
+      } catch (err: any) {
+        const msg: string = err?.message ?? 'Unknown error';
+        log.error('TargetModal', `startVolkaAnalysis attempt ${attempt} failed: ${msg}`);
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((res) => setTimeout(res, 1200));
+        } else {
+          setStatusMessage(`⚠ HF Space analysis failed after 3 attempts. Please re-upload your image.`);
+          setIsLaunching(false);
+          setTimeout(() => {
+            onClose();
+          }, 2000);
+          return;
+        }
+      }
     }
 
+    setIsLaunching(false);
     log.info('TargetModal', `Proceeding to catalog — job_id: ${jobId ?? 'none'}`);
     onConfirmTarget(target, jobId, undefined);
   };
@@ -167,8 +184,8 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
                     type="button"
                     onClick={() => handleChipSelect(chip)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border ${isSelected
-                        ? 'bg-[#38bdf8]/15 border-[#38bdf8] text-[#38bdf8] font-semibold shadow-sm'
-                        : 'bg-[#182028] border-[#3e484f]/60 text-[#bdc8d1] hover:text-[#dae3ee] hover:border-[#38bdf8]/40'
+                      ? 'bg-[#38bdf8]/15 border-[#38bdf8] text-[#38bdf8] font-semibold shadow-sm'
+                      : 'bg-[#182028] border-[#3e484f]/60 text-[#bdc8d1] hover:text-[#dae3ee] hover:border-[#38bdf8]/40'
                       }`}
                   >
                     {isSelected && <Check className="w-3 h-3 text-[#38bdf8]" />}
@@ -193,8 +210,8 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
           {/* Status Message */}
           {statusMessage && (
             <div className={`text-[11px] font-mono px-3 py-1.5 rounded-lg border flex items-center gap-2 ${statusMessage.startsWith('⚠')
-                ? 'text-red-400 bg-red-950/40 border-red-500/30'
-                : 'text-[#38bdf8] bg-[#182028] border-[#3e484f]/50'
+              ? 'text-red-400 bg-red-950/40 border-red-500/30'
+              : 'text-[#38bdf8] bg-[#182028] border-[#3e484f]/50'
               }`}>
               {statusMessage.startsWith('⚠')
                 ? <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />

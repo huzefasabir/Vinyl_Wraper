@@ -7,18 +7,22 @@ interface ExportModalProps {
   onClose: () => void;
   space: SpaceImage;
   segments: SpaceSegment[];
+  displayImage?: string;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
   isOpen,
   onClose,
   space,
-  segments
+  segments,
+  displayImage
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen) return null;
+
+  const currentRenderImage = displayImage || space.previewImage || space.hfSegmentedImage || space.imageUrl;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -30,12 +34,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     setIsExporting(true);
     setTimeout(() => {
       setIsExporting(false);
-      // Trigger synthetic download of canvas render
+      // Trigger download of currently displayed wrapped render
       const link = document.createElement('a');
-      link.download = `VinylWrap-AI-${space.title.replace(/\s+/g, '-')}-4K-Render.png`;
-      link.href = space.imageUrl;
+      link.download = `VinylWrap-AI-${space.title.replace(/\s+/g, '-')}-Render.png`;
+      link.href = currentRenderImage;
       link.click();
-    }, 1000);
+    }, 800);
   };
 
   const handleDownloadSpecSheet = () => {
@@ -111,7 +115,7 @@ COMPLIANCE & TESTING STANDARDS:
           {/* Preview Snapshot & Project Meta */}
           <div className="flex flex-col sm:flex-row gap-4 p-3 bg-[#141c24] rounded-xl border border-[#3e484f]/40">
             <img
-              src={space.imageUrl}
+              src={currentRenderImage}
               alt="Project Render"
               className="w-full sm:w-48 h-28 object-cover rounded-lg border border-[#3e484f]/40"
             />
