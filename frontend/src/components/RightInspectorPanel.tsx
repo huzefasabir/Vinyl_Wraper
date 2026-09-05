@@ -324,7 +324,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   >
                     <div
                       className="w-full h-20 rounded mb-1.5 bg-cover bg-center bg-[#0b141c]"
-                      style={{ backgroundImage: `url(${mat.imageUrl})` }}
+                      style={{ backgroundImage: `url(${mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`})` }}
                     />
                     <div className="flex justify-between items-center text-[10px] font-mono text-[#38bdf8]">
                       <span>{mat.code || mat.sku}</span>
@@ -424,7 +424,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                             >
                               <div
                                 className="w-full h-18 rounded mb-1.5 bg-cover bg-center bg-[#0b141c]"
-                                style={{ backgroundImage: `url(${mat.imageUrl})` }}
+                                style={{ backgroundImage: `url(${mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`})` }}
                               />
                               <div className="flex justify-between items-center text-[10px] font-mono font-semibold text-[#38bdf8]">
                                 <span>{mat.code || mat.sku}</span>

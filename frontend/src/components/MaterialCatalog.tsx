@@ -387,7 +387,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
                   {/* Photo Texture Preview Container - ONLY {code}.jpg is shown */}
                   <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-[#0b141c]">
                     <img
-                      src={mat.imageUrl}
+                      src={mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`}
                       alt={`${mat.name} (${mat.code})`}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

@@ -6,10 +6,25 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
+import { fileURLToPath } from 'url';
+
 dotenv.config();
 
+const getCatalogFile = () => {
+  if (fs.existsSync(path.join(process.cwd(), 'bodaq_cat.json'))) {
+    return path.join(process.cwd(), 'bodaq_cat.json');
+  }
+  if (fs.existsSync(path.join(process.cwd(), '..', 'bodaq_cat.json'))) {
+    return path.join(process.cwd(), '..', 'bodaq_cat.json');
+  }
+  const currentDir = typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(currentDir, '..', 'bodaq_cat.json');
+};
+
 // Load Catalog from bodaq_cat.json for standalone node / express serving
-const CATALOG_FILE = path.join(process.cwd(), 'bodaq_cat.json');
+const CATALOG_FILE = getCatalogFile();
 let cachedRawCatalog: any = null;
 let cachedFlatMaterials: any[] = [];
 let cachedCategoriesSummary: any[] = [];
@@ -45,7 +60,7 @@ function transformCatalogItem(it: any, catKey: string, subcatKey: string) {
   const bump = String(it.bump_map_path || '');
   const normal = String(it.normal_map_path || '');
   const mainRelImg = getCleanImagePath(diffuse, code);
-  const imageUrl = `/api/images/${mainRelImg}`;
+  const imageUrl = `/api/images/${mainRelImg}?v=2`;
   const features = it.Features || {};
   const renderParams = it.render_params || {};
   const finishDisplay = finishTypeToDisplay(it.finish_type);
@@ -214,42 +229,56 @@ async function startServer() {
     });
   });
 
-  // Serve static images from storage_data/images
   app.get('/api/images/*', (req, res) => {
-    const rawPath = req.params[0] || '';
-    const cleanPath = decodeURIComponent(rawPath).replace(/\\/g, '/').replace(/^\/+/, '');
+    try {
+      const rawPath = req.params[0] || '';
+      const cleanPath = decodeURIComponent(rawPath).replace(/\\/g, '/').replace(/^\/+/, '');
 
-    const candidates = [
-      path.join(process.cwd(), 'storage_data', 'images', cleanPath),
-      path.join(process.cwd(), 'storage_data', cleanPath),
-      path.join(process.cwd(), cleanPath),
-    ];
+      const rootDir = fs.existsSync(path.join(process.cwd(), 'storage_data'))
+        ? process.cwd()
+        : fs.existsSync(path.join(process.cwd(), '..', 'storage_data'))
+          ? path.resolve(process.cwd(), '..')
+          : process.cwd();
 
-    if (cleanPath.endsWith('.jpg')) {
-      const baseNoExt = cleanPath.slice(0, -4);
-      candidates.push(path.join(process.cwd(), 'storage_data', 'images', `${baseNoExt}.jpg.png`));
-      candidates.push(path.join(process.cwd(), 'storage_data', 'images', `${baseNoExt}.png`));
-    }
+      const baseStorageDir = path.join(rootDir, 'storage_data');
 
-    for (const p of candidates) {
-      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        return res.sendFile(p);
+      const candidates = [
+        path.join(baseStorageDir, 'images', cleanPath),
+        path.join(baseStorageDir, cleanPath),
+        path.resolve(rootDir, cleanPath),
+      ];
+
+      if (cleanPath.endsWith('.jpg')) {
+        const baseNoExt = cleanPath.slice(0, -4);
+        candidates.push(path.join(baseStorageDir, 'images', `${baseNoExt}_diffuse.jpg`));
+        candidates.push(path.join(baseStorageDir, 'images', `${baseNoExt}.jpg.png`));
+        candidates.push(path.join(baseStorageDir, 'images', `${baseNoExt}.png`));
       }
-    }
 
-    // High quality architectural fallback SVG
-    const filename = cleanPath.split('/').pop() || 'vinyl-swatch';
-    const cleanLabel = filename.replace(/\.[^/.]+$/, '');
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    return res.send(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+      for (const p of candidates) {
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+          return res.sendFile(path.resolve(p));
+        }
+      }
+
+      // High quality architectural fallback SVG
+      const filename = cleanPath.split('/').pop() || 'vinyl-swatch';
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.send(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
   <rect width="400" height="300" fill="#141c24"/>
   <rect x="20" y="20" width="360" height="260" rx="12" fill="#182028" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4 4"/>
   <circle cx="200" cy="120" r="32" fill="#222b33"/>
   <text x="200" y="180" fill="#dae3ee" font-family="system-ui, sans-serif" font-size="14" font-weight="600" text-anchor="middle">Vinyl Specimen</text>
-  <text x="200" y="205" fill="#87929a" font-family="monospace" font-size="11" text-anchor="middle">${cleanLabel}</text>
+  <text x="200" y="205" fill="#87929a" font-family="monospace" font-size="11" text-anchor="middle">${filename}</text>
 </svg>`);
+    } catch (err) {
+      console.error('[Express Image Error]:', err);
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.send(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="#141c24"/></svg>`);
+    }
   });
 
   // Catalog Hierarchy
@@ -413,7 +442,7 @@ async function startServer() {
               try {
                 const parsed = JSON.parse(rawBody);
                 return res.json(parsed);
-              } catch (e) {}
+              } catch (e) { }
             }
             sendFallbackSegments();
           });
@@ -608,7 +637,7 @@ async function startServer() {
   app.post('/api/apply-wrap', (req, res) => {
     try {
       const { space_image_id, segment_id, material_sku, parameters } = req.body;
-      
+
       // Simulate high-precision AI surface normal mapping & lighting occlusion
       const grainAngle = parameters?.grainDirection || 0;
       const roughness = parameters?.roughness ?? 80;
@@ -638,7 +667,7 @@ async function startServer() {
   app.post('/api/export', (req, res) => {
     try {
       const { projectName, spaceImageId, appliedMaterials, highResUrl } = req.body;
-      
+
       const exportId = 'EXP-' + Math.floor(100000 + Math.random() * 900000);
       const timestamp = new Date().toISOString();
 
@@ -701,7 +730,7 @@ async function startServer() {
   app.post('/api/ai-suggest', async (req, res) => {
     try {
       const { spaceType, roomVibe, existingElements } = req.body;
-      
+
       const apiKey = process.env.GEMINI_API_KEY;
       if (apiKey) {
         try {

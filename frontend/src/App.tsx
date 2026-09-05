@@ -391,9 +391,8 @@ function MainApp() {
   };
 
   return (
-    <div className={`w-full bg-[#0b141c] text-[#dae3ee] flex flex-col font-sans selection:bg-[#38bdf8]/30 selection:text-white ${
-      currentView === 'visualizer' ? 'h-screen overflow-hidden' : 'min-h-screen'
-    }`}>
+    <div className={`w-full bg-[#0b141c] text-[#dae3ee] flex flex-col font-sans selection:bg-[#38bdf8]/30 selection:text-white ${currentView === 'visualizer' ? 'h-screen overflow-hidden' : 'min-h-screen'
+      }`}>
       {/* 1. Global Navigation Header */}
       <Header
         currentView={currentView}
@@ -401,9 +400,8 @@ function MainApp() {
       />
 
       {/* 2. Main Views Switcher */}
-      <div className={`flex-1 flex flex-col pt-16 ${
-        currentView === 'visualizer' ? 'h-[calc(100vh-64px)] min-h-0 overflow-hidden' : ''
-      }`}>
+      <div className={`flex-1 flex flex-col pt-16 ${currentView === 'visualizer' ? 'h-[calc(100vh-64px)] min-h-0 overflow-hidden' : ''
+        }`}>
         {currentView === 'landing' && (
           <LandingPage
             onSelectSpace={handleSelectSpace}
@@ -476,7 +474,7 @@ function MainApp() {
                 setCurrentSpace((prev) => ({
                   ...prev,
                   hfSegmentedImage: compositeDataUrl,
-                  previewImage:     compositeDataUrl,
+                  previewImage: compositeDataUrl,
                 }));
                 showToast(`CV render complete — wrapped ${activeTargetComponent || 'surface'}`);
               }}

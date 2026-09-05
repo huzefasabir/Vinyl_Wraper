@@ -1,7 +1,4 @@
 # Python dependencies for Vinyl Wraper
-# Gemini AI SDK - used for AI surface advisor (GEMINI_API_KEY)
-google-generativeai>=0.8.0
-
 # HTTP server / API support
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0

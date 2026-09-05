@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from backend.app.api.route import router
+try:
+    from app.api.route import router
+except ImportError:
+    from backend.app.api.route import router  # type: ignore
 
 load_dotenv()
 

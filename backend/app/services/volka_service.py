@@ -15,18 +15,21 @@ except ImportError:
         return path
 
 try:
-    from backend.app.core.config import settings
-    from backend.app.core.logger import get_logger
+    from app.core.config import settings
+    from app.core.logger import get_logger
 except ImportError:
     try:
-        from app.core.config import settings
-        from app.core.logger import get_logger
+        from backend.app.core.config import settings
+        from backend.app.core.logger import get_logger
     except ImportError:
         class FallbackSettings:
             HF_SPACE_ID: str = os.getenv("HF_SPACE_ID", "Volkopat/SegmentAnythingxGroundingDINO")
             LOCAL_STORAGE_PATH: str = os.getenv("LOCAL_STORAGE_PATH", str(Path(__file__).resolve().parent.parent.parent / "storage_data"))
         settings = FallbackSettings()
-        from backend.app.core.logger import get_logger  # type: ignore
+        try:
+            from app.core.logger import get_logger
+        except ImportError:
+            from backend.app.core.logger import get_logger  # type: ignore
 
 log = get_logger("volka_svc")
 

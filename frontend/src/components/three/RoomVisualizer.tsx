@@ -35,17 +35,17 @@ import { MasterVinylMaterial } from './MasterVinylMaterial';
 import { MaskMesh } from './MaskMesh';
 
 interface RoomVisualizerProps {
-  imageUrl:          string;
+  imageUrl: string;
   hfSegmentedImage?: string;
-  displayMode:       'original' | 'wrapped';
-  segments:          SpaceSegment[];
+  displayMode: 'original' | 'wrapped';
+  segments: SpaceSegment[];
   selectedSegmentId: string | null;
-  selectedMaterial:  Material;
-  volkaStatus?:      VolkaJobStatus;
-  cvRenderStatus?:   'idle' | 'rendering' | 'done' | 'error';
+  selectedMaterial: Material;
+  volkaStatus?: VolkaJobStatus;
+  cvRenderStatus?: 'idle' | 'rendering' | 'done' | 'error';
   /** false = HF preview only; true = Phase 2 WebGL PBR overlay */
-  wrapApplied?:      boolean;
-  className?:        string;
+  wrapApplied?: boolean;
+  className?: string;
 }
 
 export function RoomVisualizer({
@@ -155,9 +155,9 @@ export function RoomVisualizer({
         <Canvas
           className="absolute inset-0 pointer-events-none"
           gl={{
-            alpha:            true,
-            antialias:        true,
-            powerPreference:  'high-performance',
+            alpha: true,
+            antialias: true,
+            powerPreference: 'high-performance',
             preserveDrawingBuffer: false,
           }}
           style={{ background: 'transparent' }}

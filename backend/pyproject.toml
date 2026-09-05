@@ -24,9 +24,9 @@ dependencies = [
 ]
 
 [tool.pyright]
-include = ["backend", "main.py"]
-exclude = ["src", "node_modules", ".venv"]
-extraPaths = ["."]
+include = ["app", "main.py"]
+exclude = ["node_modules", ".venv"]
+extraPaths = [".", ".."]
 
 [tool.uv.sources]
 segment-anything = { git = "https://github.com/facebookresearch/segment-anything.git" }

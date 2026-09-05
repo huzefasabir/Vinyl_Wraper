@@ -43,6 +43,7 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
     log.info('TargetModal', `User confirmed target surface: "${target}"`);
     log.hf('TargetModal', `Firing POST /api/volka-analyze — image: ${space.title}, prompt: "${target}"`);
 
+    const originalPhoto = space.beforeImageUrl || space.imageUrl;
     setIsLaunching(true);
     let jobId: string | undefined;
     let attempt = 0;
@@ -56,7 +57,6 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
             ? `Sending image + "${target}" to Hugging Face Space...`
             : `Retrying HF Space connection (Attempt ${attempt} of ${MAX_ATTEMPTS})...`
         );
-        const originalPhoto = space.imageUrl;
         const jobRes = await startVolkaAnalysis(
           originalPhoto,
           target,

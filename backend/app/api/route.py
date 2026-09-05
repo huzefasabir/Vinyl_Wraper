@@ -14,15 +14,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    from backend.app.core.logger import get_logger
+    from app.core.logger import get_logger
 except ImportError:
-    from app.core.logger import get_logger  # type: ignore
+    from backend.app.core.logger import get_logger  # type: ignore
 
 log = get_logger("route")
 
 router = APIRouter(prefix="/api", tags=["API Routes"])
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+if not (BASE_DIR / "bodaq_cat.json").exists() and (BASE_DIR / "backend" / "bodaq_cat.json").exists():
+    BASE_DIR = BASE_DIR / "backend"
+
 CATALOG_PATH = BASE_DIR / "bodaq_cat.json"
 STORAGE_IMAGES_DIR = BASE_DIR / "storage_data" / "images"
 STORAGE_DIR = BASE_DIR / "storage_data"
@@ -71,7 +74,7 @@ def transform_item(item: Dict[str, Any], cat_key: str, subcat_key: str) -> Dict[
     normal = str(item.get("normal_map_path") or "")
     
     main_rel_img = get_main_image_relative_path(diffuse, code)
-    image_url = f"/api/images/{main_rel_img}"
+    image_url = f"/api/images/{main_rel_img}?v=2"
     
     features = item.get("Features", {}) or {}
     render_params = item.get("render_params", {}) or {}
@@ -184,7 +187,10 @@ async def _run_volka_job(job_id: str, image_bytes: bytes, filename: str,
     """Background coroutine: calls HF Space and writes result into job store."""
     log.hf(f"JOB {job_id[:8]}… STARTED  prompt='{prompt}'  file='{filename}'  size={len(image_bytes)}B")
     try:
-        from backend.app.services.volka_service import analyze_image
+        try:
+            from app.services.volka_service import analyze_image
+        except ImportError:
+            from backend.app.services.volka_service import analyze_image
         result = await analyze_image(
             image_bytes=image_bytes,
             filename=filename,
@@ -420,6 +426,7 @@ def serve_image(file_path: str):
     
     if clean_path.endswith(".jpg"):
         base_no_ext = clean_path[:-4]
+        candidates.append(STORAGE_IMAGES_DIR / f"{base_no_ext}_diffuse.jpg")
         candidates.append(STORAGE_IMAGES_DIR / f"{base_no_ext}.jpg.png")
         candidates.append(STORAGE_IMAGES_DIR / f"{base_no_ext}.png")
 
@@ -439,7 +446,7 @@ def serve_image(file_path: str):
   <text x="200" y="180" fill="#dae3ee" font-family="system-ui, sans-serif" font-size="14" font-weight="600" text-anchor="middle">Vinyl Specimen</text>
   <text x="200" y="205" fill="#87929a" font-family="monospace" font-size="11" text-anchor="middle">{clean_path.split('/')[-1]}</text>
 </svg>"""
-    return Response(content=fallback_svg, media_type="image/svg+xml")
+    return Response(content=fallback_svg, media_type="image/svg+xml", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 class UploadSpaceRequest(BaseModel):
     imageData: str
@@ -457,7 +464,10 @@ async def segment_text_route(payload: SegmentTextRequest):
 
     # Call Volkopat/SegmentAnythingxGroundingDINO model via volka_service
     try:
-        from backend.app.services.volka_service import analyze_image
+        try:
+            from app.services.volka_service import analyze_image
+        except ImportError:
+            from backend.app.services.volka_service import analyze_image
         raw_b64 = payload.imageData
         if "," in raw_b64:
             raw_b64 = raw_b64.split(",", 1)[1]
@@ -651,9 +661,9 @@ async def vinyl_render_endpoint(payload: VinylRenderRequest):
     log.info(f"vinyl-render: swatch resolved → {swatch_path}")
 
     try:
-        from backend.app.services.vinyl_render_old import apply_vinyl_wrap, extract_pure_vinyl_texture
+        from app.services.vinyl_render import apply_vinyl_wrap, extract_pure_vinyl_texture
     except ImportError:
-        from app.services.vinyl_render_old import apply_vinyl_wrap, extract_pure_vinyl_texture  # type: ignore
+        from backend.app.services.vinyl_render import apply_vinyl_wrap, extract_pure_vinyl_texture  # type: ignore
 
     t0 = time.perf_counter()
     loop = asyncio.get_event_loop()
