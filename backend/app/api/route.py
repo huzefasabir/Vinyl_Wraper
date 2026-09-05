@@ -513,6 +513,7 @@ async def segment_text_route(payload: SegmentTextRequest):
         "fallback": True
     }
 
+
 @router.post("/upload-space")
 def upload_space(payload: UploadSpaceRequest):
     import time
