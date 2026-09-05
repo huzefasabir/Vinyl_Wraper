@@ -349,9 +349,28 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
 
       {/* 5. Materials Grid with Primary CTA: "Apply to [Component] in Visualizer →" */}
       {filteredMaterials.length === 0 ? (
-        <div className="text-center py-16 bg-[#141c24]/50 rounded-2xl border border-[#3e484f]/30">
-          <p className="text-base text-[#dae3ee] font-medium mb-1">No vinyl styles match your current filter</p>
-          <p className="text-xs text-[#87929a]">Try changing the category or clearing the search query.</p>
+        <div className="text-center py-16 px-4 bg-[#141c24]/60 rounded-2xl border border-[#3e484f]/40 flex flex-col items-center justify-center shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-[24px]">search_off</span>
+          </div>
+          <h4 className="text-base font-bold text-[#dae3ee] mb-1">Vinyl style not found</h4>
+          <p className="text-xs text-[#87929a] max-w-md">
+            This style is currently unavailable. Please try again with another style.
+          </p>
+          {(selectedCategory !== 'all' || subCategory !== 'all' || searchQuery || filterNewOnly || filterFireRetardantOnly) && (
+            <button
+              onClick={() => {
+                setSelectedCategory('all');
+                setSubCategory('all');
+                setSearchQuery('');
+                setFilterNewOnly(false);
+                setFilterFireRetardantOnly(false);
+              }}
+              className="mt-4 px-4 py-2 bg-[#182028] hover:bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/30 hover:border-[#38bdf8] rounded-xl text-xs font-semibold transition-all"
+            >
+              Reset Filters & View All
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">

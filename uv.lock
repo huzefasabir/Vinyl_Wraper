@@ -1932,6 +1932,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "accelerate" },
+    { name = "exceptiongroup" },
     { name = "fastapi" },
     { name = "google-generativeai" },
     { name = "gradio-client" },
@@ -1954,6 +1955,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=0.29.0" },
+    { name = "exceptiongroup", specifier = ">=1.2.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "google-generativeai", specifier = ">=0.8.0" },
     { name = "gradio-client", specifier = ">=1.0.0" },

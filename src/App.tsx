@@ -1,14 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
 import { LeftStudioToolbar } from './components/LeftStudioToolbar';
 import { StudioCanvas } from './components/StudioCanvas';
 import { RightInspectorPanel } from './components/RightInspectorPanel';
 import { MaterialCatalog } from './components/MaterialCatalog';
-import { ProjectsView } from './components/ProjectsView';
+import { NotFoundPage } from './components/NotFoundPage';
 import { PbrModal } from './components/PbrModal';
 import { ExportModal } from './components/ExportModal';
-import { AiAdvisorModal } from './components/AiAdvisorModal';
 import { TargetSurfaceModal } from './components/TargetSurfaceModal';
 import { PRESET_SPACES } from './data/presetSpaces';
 import { MATERIALS } from './data/materialsData';
@@ -16,9 +16,52 @@ import { SpaceImage, SpaceSegment, Material, RenderParameters, StudioTool, SubNa
 import { VisionSegmentationResult, pollVolkaStatus, startVolkaAnalysis } from './services/api';
 import { log } from './services/logger';
 
+// Application Error Boundary
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Uncaught studio error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <NotFoundPage
+          onNavigate={() => {
+            this.setState({ hasError: false, error: null });
+            window.location.reload();
+          }}
+          errorMessage={this.state.error?.message || 'An unexpected application error occurred.'}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
+  );
+}
+
+function MainApp() {
   // Navigation
-  const [currentView, setCurrentView] = useState<'landing' | 'visualizer' | 'catalog' | 'projects'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'visualizer' | 'catalog' | '404'>('landing');
+  const [notFoundError, setNotFoundError] = useState<string>('');
 
   // Active space, segments & target component
   const [currentSpace, setCurrentSpace] = useState<SpaceImage>(PRESET_SPACES[0]);
@@ -48,11 +91,14 @@ export default function App() {
   const [inspectedMaterial, setInspectedMaterial] = useState<Material>(MATERIALS[0]);
   const [isPbrModalOpen, setIsPbrModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isAdvisorModalOpen, setIsAdvisorModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
 
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Panel visibility (collapsible panels)
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   // Polling ref for active Volka HF job & retry count
   const volkaPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -345,16 +391,19 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b141c] text-[#dae3ee] flex flex-col font-sans selection:bg-[#38bdf8]/30 selection:text-white">
+    <div className={`w-full bg-[#0b141c] text-[#dae3ee] flex flex-col font-sans selection:bg-[#38bdf8]/30 selection:text-white ${
+      currentView === 'visualizer' ? 'h-screen overflow-hidden' : 'min-h-screen'
+    }`}>
       {/* 1. Global Navigation Header */}
       <Header
         currentView={currentView}
         onNavigate={setCurrentView}
-        onOpenAdvisor={() => setIsAdvisorModalOpen(true)}
       />
 
       {/* 2. Main Views Switcher */}
-      <div className="flex-1 flex flex-col pt-16">
+      <div className={`flex-1 flex flex-col pt-16 ${
+        currentView === 'visualizer' ? 'h-[calc(100vh-64px)] min-h-0 overflow-hidden' : ''
+      }`}>
         {currentView === 'landing' && (
           <LandingPage
             onSelectSpace={handleSelectSpace}
@@ -368,23 +417,38 @@ export default function App() {
         )}
 
         {currentView === 'visualizer' && (
-          <div className="flex-1 flex h-[calc(100vh-64px)] overflow-hidden">
+          <div className="w-full h-full flex overflow-hidden relative">
+            {/* Floating button to restore Left Panel when closed */}
+            {!isLeftPanelOpen && (
+              <button
+                onClick={() => setIsLeftPanelOpen(true)}
+                className="absolute top-16 left-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
+                title="Open Studio Tools Panel"
+              >
+                <PanelLeftOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:inline">Studio Tools</span>
+              </button>
+            )}
+
             {/* Left Studio Tool Strip & Surface Layers */}
-            <LeftStudioToolbar
-              activeTool={activeTool}
-              onSelectTool={setActiveTool}
-              activeSection={activeSubSection}
-              onSelectSection={setActiveSubSection}
-              canUndo={historyIndex > 0}
-              canRedo={historyIndex < history.length - 1}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-              onExport={() => setIsExportModalOpen(true)}
-              segments={segments}
-              selectedSegmentId={selectedSegmentId}
-              onSelectSegment={handleSelectSegment}
-              onWrapSomethingElse={() => setIsTargetModalOpen(true)}
-            />
+            {isLeftPanelOpen && (
+              <LeftStudioToolbar
+                activeTool={activeTool}
+                onSelectTool={setActiveTool}
+                activeSection={activeSubSection}
+                onSelectSection={setActiveSubSection}
+                canUndo={historyIndex > 0}
+                canRedo={historyIndex < history.length - 1}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                onExport={() => setIsExportModalOpen(true)}
+                segments={segments}
+                selectedSegmentId={selectedSegmentId}
+                onSelectSegment={handleSelectSegment}
+                onWrapSomethingElse={() => setIsTargetModalOpen(true)}
+                onClosePanel={() => setIsLeftPanelOpen(false)}
+              />
+            )}
 
             {/* Central Studio Canvas Viewport */}
             <StudioCanvas
@@ -418,14 +482,29 @@ export default function App() {
               }}
             />
 
+            {/* Floating button to restore Right Panel when closed */}
+            {!isRightPanelOpen && (
+              <button
+                onClick={() => setIsRightPanelOpen(true)}
+                className="absolute top-16 right-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
+                title="Open Vinyl Library Panel"
+              >
+                <PanelRightOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:inline">Vinyl Styles</span>
+              </button>
+            )}
+
             {/* Right Inspector & Materials Library Panel */}
-            <RightInspectorPanel
-              selectedMaterial={selectedMaterial}
-              onSelectMaterial={handleQuickApplyMaterial}
-              renderParameters={renderParameters}
-              onChangeParameters={setRenderParameters}
-              onOpenSpecsModal={handleOpenSpecsModal}
-            />
+            {isRightPanelOpen && (
+              <RightInspectorPanel
+                selectedMaterial={selectedMaterial}
+                onSelectMaterial={handleQuickApplyMaterial}
+                renderParameters={renderParameters}
+                onChangeParameters={setRenderParameters}
+                onOpenSpecsModal={handleOpenSpecsModal}
+                onClosePanel={() => setIsRightPanelOpen(false)}
+              />
+            )}
           </div>
         )}
 
@@ -443,10 +522,13 @@ export default function App() {
           />
         )}
 
-        {currentView === 'projects' && (
-          <ProjectsView
-            onLoadSpace={handleSelectSpace}
-            onNavigateToStudio={() => setCurrentView('visualizer')}
+        {currentView === '404' && (
+          <NotFoundPage
+            onNavigate={(view) => {
+              setNotFoundError('');
+              setCurrentView(view);
+            }}
+            errorMessage={notFoundError || 'The requested architectural page or material resource was not found.'}
           />
         )}
       </div>
@@ -481,13 +563,6 @@ export default function App() {
           setIsTargetModalOpen(false);
           handleConfirmTargetAndProceed(currentSpace, targetName, jobId, visionResult);
         }}
-      />
-
-      {/* AI Surface Harmony Stylist Modal */}
-      <AiAdvisorModal
-        isOpen={isAdvisorModalOpen}
-        onClose={() => setIsAdvisorModalOpen(false)}
-        onApplyPalette={handleApplyPalette}
       />
 
       {/* 4. Global Toast Notification */}

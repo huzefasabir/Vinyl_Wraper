@@ -1,13 +1,12 @@
 import React from 'react';
-import { Layers, Sparkles, FolderKanban, BookOpen, Compass, ShieldCheck } from 'lucide-react';
+import { Layers, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
-  currentView: 'landing' | 'visualizer' | 'catalog' | 'projects';
-  onNavigate: (view: 'landing' | 'visualizer' | 'catalog' | 'projects') => void;
-  onOpenAdvisor?: () => void;
+  currentView: 'landing' | 'visualizer' | 'catalog' | '404';
+  onNavigate: (view: 'landing' | 'visualizer' | 'catalog' | '404') => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenAdvisor }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
   return (
     <header className="fixed top-0 left-0 right-0 h-16 z-50 bg-[#182028]/85 backdrop-blur-xl border-b border-[#3e484f]/40 px-4 sm:px-8 flex items-center justify-between transition-all">
       {/* Brand & Nav */}
@@ -25,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenA
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-lg sm:text-xl tracking-tight text-[#dae3ee] group-hover:text-white transition-colors">
-              VinylWrap <span className="text-[#38bdf8]">AI</span>
+              Wrap <span className="text-[#38bdf8]">AI</span>
             </span>
           </div>
         </button>
@@ -34,62 +33,37 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenA
         <nav className="hidden md:flex items-center gap-1.5 lg:gap-2">
           <button
             onClick={() => onNavigate('landing')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              currentView === 'landing'
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'landing'
                 ? 'text-[#38bdf8] bg-[#38bdf8]/10 font-semibold'
                 : 'text-[#bdc8d1] hover:text-[#dae3ee] hover:bg-[#222b33]/50'
-            }`}
+              }`}
           >
             Home
           </button>
           <button
             onClick={() => onNavigate('visualizer')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
-              currentView === 'visualizer'
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${currentView === 'visualizer'
                 ? 'text-[#38bdf8] bg-[#38bdf8]/10 font-semibold'
                 : 'text-[#bdc8d1] hover:text-[#dae3ee] hover:bg-[#222b33]/50'
-            }`}
+              }`}
           >
             <span>Visualizer</span>
             <span className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-pulse"></span>
           </button>
           <button
             onClick={() => onNavigate('catalog')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              currentView === 'catalog'
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'catalog'
                 ? 'text-[#38bdf8] bg-[#38bdf8]/10 font-semibold'
                 : 'text-[#bdc8d1] hover:text-[#dae3ee] hover:bg-[#222b33]/50'
-            }`}
+              }`}
           >
             Catalog
-          </button>
-          <button
-            onClick={() => onNavigate('projects')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              currentView === 'projects'
-                ? 'text-[#38bdf8] bg-[#38bdf8]/10 font-semibold'
-                : 'text-[#bdc8d1] hover:text-[#dae3ee] hover:bg-[#222b33]/50'
-            }`}
-          >
-            My Projects
           </button>
         </nav>
       </div>
 
       {/* Right Controls */}
       <div className="flex items-center gap-3">
-        {/* AI Surface Stylist Button */}
-        {onOpenAdvisor && (
-          <button
-            onClick={onOpenAdvisor}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#222b33] hover:bg-[#2d363e] border border-[#3e484f]/60 text-xs font-medium text-[#dae3ee] hover:text-[#38bdf8] transition-all shadow-sm group"
-            title="Open AI Material Harmony Advisor"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[#38bdf8] group-hover:rotate-12 transition-transform" />
-            <span>AI Stylist</span>
-          </button>
-        )}
-
         {/* Quick studio jump if in landing or catalog */}
         {currentView !== 'visualizer' && (
           <button

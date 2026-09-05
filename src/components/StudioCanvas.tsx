@@ -774,7 +774,12 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
         {/* Carousel Row (Matching Screenshot Cards with "Apply" button) */}
         <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
-          {relatedStyles.map((item) => (
+          {relatedStyles.length === 0 ? (
+            <div className="w-full py-4 text-center text-xs text-[#87929a] font-medium">
+              Vinyl style not found. This style is currently unavailable. Please try again with another style.
+            </div>
+          ) : (
+            relatedStyles.map((item) => (
             <div
               key={item.id}
               className="flex-shrink-0 w-44 bg-[#141c24] rounded-xl p-2 border border-[#3e484f]/30 hover:border-[#38bdf8]/50 transition-all flex flex-col justify-between group shadow-sm"
@@ -827,7 +832,8 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
                 )}
               </button>
             </div>
-          ))}
+          ))
+        )}
 
           {/* Custom Upload Texture Slot */}
           <div
