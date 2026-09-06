@@ -146,7 +146,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
           <div className="flex-1 min-w-0">
             <span className="font-semibold text-[#38bdf8]">Segmentation running in background</span>
             <span className="text-[#87929a] ml-2">
-              Volkopat/SegmentAnythingxGroundingDINO is processing <span className="text-[#dae3ee] font-mono">"{targetComponent}"</span> — pick a vinyl style while you wait.
+              We are processing your Image <span className="text-[#dae3ee] font-mono">"{targetComponent}"</span> — pick a vinyl style while you wait.
             </span>
           </div>
           <div className="w-24 h-1 bg-[#222b33] rounded-full overflow-hidden flex-shrink-0">
@@ -244,11 +244,10 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setFilterNewOnly(!filterNewOnly)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                filterNewOnly
+              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${filterNewOnly
                   ? 'bg-[#38bdf8]/20 text-[#38bdf8] border-[#38bdf8]'
                   : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
-              }`}
+                }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>NEW</span>
@@ -256,11 +255,10 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
 
             <button
               onClick={() => setFilterFireRetardantOnly(!filterFireRetardantOnly)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                filterFireRetardantOnly
+              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${filterFireRetardantOnly
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
                   : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
-              }`}
+                }`}
             >
               <Flame className="w-3.5 h-3.5" />
               <span>Fire Retardant</span>
@@ -275,19 +273,17 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
           <button
             key={cat.id}
             onClick={() => handleCategorySelect(cat.name)}
-            className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all flex items-center gap-2 border ${
-              selectedCategory.toLowerCase() === cat.name.toLowerCase()
+            className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all flex items-center gap-2 border ${selectedCategory.toLowerCase() === cat.name.toLowerCase()
                 ? 'bg-[#38bdf8] text-[#00354a] font-semibold border-[#38bdf8] shadow-lg shadow-[#38bdf8]/20'
                 : 'bg-[#182028] text-[#bdc8d1] hover:text-[#dae3ee] border-[#3e484f]/40 hover:border-[#38bdf8]/50'
-            }`}
+              }`}
           >
             <span>{cat.name}</span>
             <span
-              className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                selectedCategory.toLowerCase() === cat.name.toLowerCase()
+              className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${selectedCategory.toLowerCase() === cat.name.toLowerCase()
                   ? 'bg-[#00354a]/20 text-[#00354a]'
                   : 'bg-[#222b33] text-[#87929a]'
-              }`}
+                }`}
             >
               {cat.count}
             </span>
@@ -299,11 +295,10 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
       <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 border-b border-[#3e484f]/30 scrollbar-none">
         <button
           onClick={() => setSubCategory('all')}
-          className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-            subCategory === 'all'
+          className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${subCategory === 'all'
               ? 'bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/40 font-semibold shadow-xs'
               : 'text-[#87929a] hover:text-[#dae3ee] hover:bg-[#182028]'
-          }`}
+            }`}
         >
           <span>All {selectedCatObj?.name || 'Category'}</span>
         </button>
@@ -312,11 +307,10 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
           <button
             key={sub.id}
             onClick={() => setSubCategory(sub.id)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-              subCategory === sub.id
+            className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${subCategory === sub.id
                 ? 'bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/40 font-semibold shadow-xs'
                 : 'text-[#87929a] hover:text-[#dae3ee] hover:bg-[#182028]'
-            }`}
+              }`}
           >
             <span>{sub.name}</span>
             {'count' in sub && sub.count !== undefined && (

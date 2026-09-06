@@ -29,7 +29,7 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
     'Countertop',
     'Backsplash',
     'Wardrobe',
-    'Accent Wall',
+    'Wall',
     'Door',
     'Floor',
   ];
