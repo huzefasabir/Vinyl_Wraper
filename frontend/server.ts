@@ -6,32 +6,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
-import { fileURLToPath } from 'url';
-
-import https from 'https';
-
 dotenv.config();
-
-function getBackendProxyOptions(apiPath: string, method = 'GET', extraHeaders: Record<string, string> = {}) {
-  const backendBase = process.env.BACKEND_URL || process.env.VITE_API_BASE_URL || 'https://vinyl-wraper-back.onrender.com';
-  const cleanBase = backendBase.replace(/\/+$/, '');
-  const fullUrl = new URL(cleanBase + (apiPath.startsWith('/') ? apiPath : '/' + apiPath));
-  const isHttps = fullUrl.protocol === 'https:';
-  const client = isHttps ? https : http;
-
-  const reqOptions: http.RequestOptions = {
-    protocol: fullUrl.protocol,
-    hostname: fullUrl.hostname,
-    port: fullUrl.port || (isHttps ? 443 : 80),
-    path: fullUrl.pathname + fullUrl.search,
-    method: method,
-    headers: {
-      ...extraHeaders,
-    },
-  };
-
-  return { client, reqOptions };
-}
 
 const getCatalogFile = () => {
   if (fs.existsSync(path.join(process.cwd(), 'bodaq_cat.json'))) {
@@ -40,9 +15,7 @@ const getCatalogFile = () => {
   if (fs.existsSync(path.join(process.cwd(), '..', 'bodaq_cat.json'))) {
     return path.join(process.cwd(), '..', 'bodaq_cat.json');
   }
-  const currentDir = typeof __dirname !== 'undefined'
-    ? __dirname
-    : path.dirname(fileURLToPath(import.meta.url));
+  const currentDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
   return path.resolve(currentDir, '..', 'bodaq_cat.json');
 };
 
@@ -437,24 +410,51 @@ async function startServer() {
   });
 
   // API 2.5: Text-to-Mask Vision Segmentation (LocateAnything-3B + SAM)
-  // API 2.5: Text-to-Mask Vision Segmentation (LocateAnything-3B + SAM)
   app.post('/api/segment-text', async (req, res) => {
-    let responded = false;
-    const done = (fn: () => void) => {
-      if (!responded && !res.headersSent) {
-        responded = true;
-        fn();
-      }
-    };
-
     try {
       const { imageData, query, confidenceThreshold } = req.body;
       if (!imageData || !query) {
-        return done(() => res.status(400).json({ error: 'Image data and query prompt are required' }));
+        return res.status(400).json({ error: 'Image data and query prompt are required' });
+      }
+
+      // Try proxying to FastAPI backend on port 8000 first
+      try {
+        const postData = JSON.stringify({ imageData, query, confidenceThreshold: confidenceThreshold || 0.5 });
+        const proxyReq = http.request({
+          hostname: '127.0.0.1',
+          port: 8000,
+          path: '/api/segment-text',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+          timeout: 45000,
+        }, (proxyRes) => {
+          let rawBody = '';
+          proxyRes.on('data', chunk => rawBody += chunk);
+          proxyRes.on('end', () => {
+            if (proxyRes.statusCode && proxyRes.statusCode < 400) {
+              try {
+                const parsed = JSON.parse(rawBody);
+                return res.json(parsed);
+              } catch (e) { }
+            }
+            sendFallbackSegments();
+          });
+        });
+
+        proxyReq.on('error', () => {
+          sendFallbackSegments();
+        });
+        proxyReq.write(postData);
+        proxyReq.end();
+      } catch (proxyErr) {
+        sendFallbackSegments();
       }
 
       function sendFallbackSegments() {
-        const cleanSlug = (query || 'item').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const cleanSlug = query.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const defaultSegments = [
           {
             id: `seg-${cleanSlug}-1`,
@@ -471,7 +471,7 @@ async function startServer() {
             areaPercentage: 16.7
           }
         ];
-        res.json({
+        return res.json({
           success: true,
           query,
           count: defaultSegments.length,
@@ -481,47 +481,8 @@ async function startServer() {
           fallback: true
         });
       }
-
-      // Try proxying to FastAPI backend
-      try {
-        const postData = JSON.stringify({ imageData, query, confidenceThreshold: confidenceThreshold || 0.5 });
-        const { client, reqOptions } = getBackendProxyOptions('/api/segment-text', 'POST', {
-          'Content-Type': 'application/json',
-          'Content-Length': String(Buffer.byteLength(postData)),
-        });
-
-        const proxyReq = client.request({
-          ...reqOptions,
-          timeout: 45000,
-        }, (proxyRes) => {
-          let rawBody = '';
-          proxyRes.on('data', chunk => rawBody += chunk);
-          proxyRes.on('end', () => done(() => {
-            if (proxyRes.statusCode && proxyRes.statusCode < 400) {
-              try {
-                const parsed = JSON.parse(rawBody);
-                return res.json(parsed);
-              } catch (e) { }
-            }
-            sendFallbackSegments();
-          }));
-        });
-
-        proxyReq.on('timeout', () => {
-          proxyReq.destroy();
-          done(() => sendFallbackSegments());
-        });
-
-        proxyReq.on('error', () => {
-          done(() => sendFallbackSegments());
-        });
-        proxyReq.write(postData);
-        proxyReq.end();
-      } catch (proxyErr) {
-        done(() => sendFallbackSegments());
-      }
     } catch (err: any) {
-      done(() => res.status(500).json({ error: err.message || 'Vision pipeline segmentation failed' }));
+      res.status(500).json({ error: err.message || 'Vision pipeline segmentation failed' });
     }
   });
 
@@ -532,62 +493,26 @@ async function startServer() {
 
     try {
       const postData = JSON.stringify(req.body);
-      const { client, reqOptions } = getBackendProxyOptions('/api/volka-analyze', 'POST', {
-        'Content-Type': 'application/json',
-        'Content-Length': String(Buffer.byteLength(postData)),
-      });
-
-      const proxyReq = client.request({
-        ...reqOptions,
-        timeout: 20000,
+      const proxyReq = http.request({
+        hostname: '127.0.0.1', port: 8000, path: '/api/volka-analyze', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+        timeout: 10000,
       }, (proxyRes) => {
         let rawBody = '';
         proxyRes.on('data', (chunk) => (rawBody += chunk));
         proxyRes.on('end', () => done(() => {
-          if (proxyRes.statusCode && proxyRes.statusCode < 400) {
-            res.status(proxyRes.statusCode);
-            try { res.json(JSON.parse(rawBody)); } catch { res.send(rawBody); }
-          } else {
-            console.warn('[volka-analyze proxy] Backend status:', proxyRes.statusCode, 'using fallback');
-            const fallbackJobId = `job-${Date.now()}`;
-            const fallbackImg = req.body?.imageData ? String(req.body.imageData).replace(/^data:image\/[a-z]+;base64,/, '') : '';
-            res.json({
-              success: true,
-              job_id: fallbackJobId,
-              status: 'done',
-              hfSegmentedImage: req.body?.imageData || '',
-              annotated_image_b64: fallbackImg,
-              description: 'Surface layout mapped.',
-            });
-          }
+          res.status(proxyRes.statusCode || 200);
+          try { res.json(JSON.parse(rawBody)); } catch { res.send(rawBody); }
         }));
       });
       proxyReq.on('timeout', () => {
-        console.warn('[volka-analyze proxy] Backend timed out, using fallback');
+        console.warn('[volka-analyze proxy] FastAPI timed out');
         proxyReq.destroy();
-        const fallbackJobId = `job-${Date.now()}`;
-        const fallbackImg = req.body?.imageData ? String(req.body.imageData).replace(/^data:image\/[a-z]+;base64,/, '') : '';
-        done(() => res.json({
-          success: true,
-          job_id: fallbackJobId,
-          status: 'done',
-          hfSegmentedImage: req.body?.imageData || '',
-          annotated_image_b64: fallbackImg,
-          description: 'Surface layout mapped.',
-        }));
+        done(() => res.status(503).json({ error: 'backend_unavailable', message: 'Python backend not reachable. Start it with: python main.py', reason: 'timeout' }));
       });
       proxyReq.on('error', (err) => {
-        console.warn('[volka-analyze proxy] Backend unreachable:', err.message);
-        const fallbackJobId = `job-${Date.now()}`;
-        const fallbackImg = req.body?.imageData ? String(req.body.imageData).replace(/^data:image\/[a-z]+;base64,/, '') : '';
-        done(() => res.json({
-          success: true,
-          job_id: fallbackJobId,
-          status: 'done',
-          hfSegmentedImage: req.body?.imageData || '',
-          annotated_image_b64: fallbackImg,
-          description: 'Surface layout mapped.',
-        }));
+        console.warn('[volka-analyze proxy] FastAPI unreachable:', err.message);
+        done(() => res.status(503).json({ error: 'backend_unavailable', message: 'Python backend not reachable. Start it with: python main.py', details: err.message }));
       });
       proxyReq.write(postData);
       proxyReq.end();
@@ -599,65 +524,39 @@ async function startServer() {
   // GET /api/volka-status/:jobId — poll result
   app.get(['/api/volka-status/:jobId', '/api/volko-status/:jobId', '/api/volka/status/:jobId', '/api/volko/status/:jobId'], (req, res) => {
     const jobId = req.params.jobId;
-
-    let responded = false;
-    const done = (fn: () => void) => { if (!responded && !res.headersSent) { responded = true; fn(); } };
-
-    // Intercept fallback job IDs generated by Node proxy so we never query backend with them
-    if (jobId.startsWith('job-')) {
-      return done(() => res.json({
-        success: true,
-        job_id: jobId,
-        status: 'done',
-        description: 'Surface layout mapped.',
-      }));
-    }
-
-    const { client, reqOptions } = getBackendProxyOptions(`/api/volka-status/${encodeURIComponent(jobId)}`, 'GET');
-
-    const proxyReq = client.request(
+    const proxyReq = http.request(
       {
-        ...reqOptions,
-        timeout: 15000,
+        hostname: '127.0.0.1',
+        port: 8000,
+        path: `/api/volka-status/${encodeURIComponent(jobId)}`,
+        method: 'GET',
+        timeout: 8000,
       },
       (proxyRes) => {
         let rawBody = '';
         proxyRes.on('data', (chunk) => (rawBody += chunk));
-        proxyRes.on('end', () => done(() => {
-          if (proxyRes.statusCode && proxyRes.statusCode < 400) {
-            res.status(proxyRes.statusCode);
-            try { res.json(JSON.parse(rawBody)); }
-            catch { res.send(rawBody); }
-          } else {
-            // Backend returned 404 or error status
-            res.json({
-              success: true,
-              job_id: jobId,
-              status: 'done',
-              description: 'Surface layout mapped.',
-            });
-          }
-        }));
+        proxyRes.on('end', () => {
+          res.status(proxyRes.statusCode || 200);
+          try { res.json(JSON.parse(rawBody)); }
+          catch { res.send(rawBody); }
+        });
       }
     );
     proxyReq.on('timeout', () => {
-      console.warn('[volka-status proxy] Backend timed out, using fallback');
       proxyReq.destroy();
-      done(() => res.json({
-        success: true,
-        job_id: jobId,
-        status: 'done',
-        description: 'Surface layout mapped.',
-      }));
+      console.warn('[volka-status proxy] FastAPI timed out');
+      res.status(503).json({
+        error: 'backend_unavailable',
+        message: 'Python backend not reachable. Start it with: python main.py',
+      });
     });
     proxyReq.on('error', (err) => {
-      console.warn('[volka-status proxy] Backend unreachable:', err.message);
-      done(() => res.json({
-        success: true,
-        job_id: jobId,
-        status: 'done',
-        description: 'Surface layout mapped.',
-      }));
+      console.warn('[volka-status proxy] FastAPI unreachable:', err.message);
+      res.status(503).json({
+        error: 'backend_unavailable',
+        message: 'Python backend not reachable. Start it with: python main.py',
+        details: err.message,
+      });
     });
     proxyReq.end();
   });
@@ -668,57 +567,63 @@ async function startServer() {
   // The body can be several MB, so we stream the response back via chunks and
   // use a 120 s timeout — the OpenCV pipeline can take 10–30 s on large images.
   app.post('/api/vinyl-render', async (req, res) => {
-    let responded = false;
-    const done = (fn: () => void) => { if (!responded && !res.headersSent) { responded = true; fn(); } };
-
     try {
       const postData = JSON.stringify(req.body);
       const contentLength = Buffer.byteLength(postData);
-      const { client, reqOptions } = getBackendProxyOptions('/api/vinyl-render', 'POST', {
-        'Content-Type': 'application/json',
-        'Content-Length': String(contentLength),
-      });
 
-      const proxyReq = client.request(
+      const proxyReq = http.request(
         {
-          ...reqOptions,
+          hostname: '127.0.0.1',
+          port: 8000,
+          path: '/api/vinyl-render',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': contentLength,
+          },
           timeout: 120_000,   // 2 min — OpenCV pipeline on large images
         },
         (proxyRes) => {
           // Stream response in chunks — composite PNG b64 can be several MB
           const chunks: Buffer[] = [];
           proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
-          proxyRes.on('end', () => done(() => {
+          proxyRes.on('end', () => {
             const rawBody = Buffer.concat(chunks).toString('utf-8');
             res.status(proxyRes.statusCode || 200);
             try { res.json(JSON.parse(rawBody)); }
             catch { res.send(rawBody); }
-          }));
+          });
         }
       );
 
       proxyReq.on('timeout', () => {
-        console.warn('[vinyl-render proxy] FastAPI timed out after 120s');
         proxyReq.destroy();
-        done(() => res.status(503).json({
-          error: 'backend_unavailable',
-          message: 'CV render timed out. The image may be too large or the backend is slow.',
-        }));
+        console.warn('[vinyl-render proxy] FastAPI timed out after 120s');
+        if (!res.headersSent) {
+          res.status(503).json({
+            error: 'backend_unavailable',
+            message: 'CV render timed out. The image may be too large or the backend is slow.',
+          });
+        }
       });
 
       proxyReq.on('error', (err) => {
         console.warn('[vinyl-render proxy] FastAPI unreachable:', err.message);
-        done(() => res.status(503).json({
-          error: 'backend_unavailable',
-          message: 'Python backend not reachable. Start it with: python main.py',
-          details: err.message,
-        }));
+        if (!res.headersSent) {
+          res.status(503).json({
+            error: 'backend_unavailable',
+            message: 'Python backend not reachable. Start it with: python main.py',
+            details: err.message,
+          });
+        }
       });
 
       proxyReq.write(postData);
       proxyReq.end();
     } catch (err: any) {
-      done(() => res.status(500).json({ error: 'proxy_error', message: err.message }));
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'proxy_error', message: err.message });
+      }
     }
   });
 
@@ -817,96 +722,45 @@ async function startServer() {
     }
   });
 
-  // API 6: AI Surface Advisor (Gemini integration or smart fallback)
-  app.post('/api/ai-suggest', async (req, res) => {
-    try {
-      const { spaceType, roomVibe, existingElements } = req.body;
-
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (apiKey) {
-        try {
-          const ai = new GoogleGenAI({ apiKey });
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `You are an elite architectural surface designer and material specialist.
-Suggest the optimal architectural vinyl wrap combination for a ${spaceType || 'kitchen'} space with ${roomVibe || 'modern luxury'} aesthetic and ${existingElements || 'neutral surroundings'}.
-Return JSON format with:
-{
-  "designTheme": "Short theme title",
-  "paletteMood": "Atmospheric description in 2 sentences",
-  "recommendedSkus": ["SPW-01", "RM001", "PZ330"],
-  "zonePairings": [
-    {"zone": "Upper Cabinets", "material": "Japanese Ash (SPW-01)", "finish": "Super Matt", "why": "Explanation"},
-    {"zone": "Countertop & Island", "material": "Calacatta Gloss (RM001)", "finish": "High Gloss", "why": "Explanation"}
-  ],
-  "lightingTip": "Practical tip for lighting and reflection angles"
-}`
-          });
-
-          const text = response.text || '';
-          const cleanedJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(cleanedJson);
-          return res.json({ success: true, advisor: parsed });
-        } catch (geminiError) {
-          console.warn('Gemini API call failed, using heuristic advisor:', geminiError);
-        }
-      }
-
-      // High-quality deterministic fallback recommendations
-      res.json({
-        success: true,
-        advisor: {
-          designTheme: 'Japandi Modern Contrast',
-          paletteMood: 'A serene balance of organic pale grain textures anchored by ultra-matte neutral solids and polished Calacatta veining.',
-          recommendedSkus: ['SPW-01', 'PZ330', 'RM001'],
-          zonePairings: [
-            {
-              zone: 'Upper Wall Cabinets',
-              material: 'Japanese Ash Select (SPW-01)',
-              finish: 'Super Matt',
-              why: 'Deeply embossed micro-grain adds natural warmth without distracting specular glare under direct downlights.'
-            },
-            {
-              zone: 'Waterfall Island Countertop',
-              material: 'Calacatta Gloss (RM001)',
-              finish: 'High Gloss',
-              why: 'Creates a focal architectural centerpiece with continuous veining and self-healing thermal topcoat.'
-            },
-            {
-              zone: 'Base Storage Units',
-              material: 'Mono Blanc Matte (PZ330)',
-              finish: 'Super Matt Solids',
-              why: 'Zero-reflection anti-fingerprint surface provides seamless horizontal grounding.'
-            }
-          ],
-          lightingTip: 'Position LED strip lighting with 3000K warm white color temperature at a 45° angle to accentuate the tactile emboss.'
-        }
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: 'AI recommendation error' });
-    }
-  });
-
-  // Vite integration middleware
+  // Serve frontend SPA via Vite in dev mode or static files in production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: 'custom',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.use('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        const indexPath = path.resolve(process.cwd(), 'index.html');
+        if (fs.existsSync(indexPath)) {
+          let template = fs.readFileSync(indexPath, 'utf-8');
+          template = await vite.transformIndexHtml(url, template);
+          res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        } else {
+          next();
+        }
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
     });
+  } else {
+    const distDir = path.resolve(process.cwd(), 'dist');
+    if (fs.existsSync(distDir)) {
+      app.use(express.static(distDir));
+      app.get('*', (req, res) => {
+        res.sendFile(path.resolve(distDir, 'index.html'));
+      });
+    }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`VinylWrap AI Studio server running on http://0.0.0.0:${PORT}`);
+  const PORT_NUM = Number(process.env.PORT) || 3000;
+  app.listen(PORT_NUM, '0.0.0.0', () => {
+    console.log(`[Express] Vinyl Wrap AI Studio running at http://localhost:${PORT_NUM}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('Server startup error:', err);
+  console.error('[Express] Failed to start server:', err);
 });

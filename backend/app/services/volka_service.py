@@ -110,53 +110,39 @@ async def analyze_image(
     log.info(f"Temp file written & closed: {tmp_path}")
 
     try:
-        log.hf(f"Dispatching _run_predict to thread pool executor (30s timeout)")
+        log.hf(f"Dispatching _run_predict to thread pool executor")
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = asyncio.get_event_loop()
 
-        try:
-            result_path, description = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None, _run_predict, tmp_path, prompt, show_masks, show_boxes, crop_option
-                ),
-                timeout=30.0
-            )
+        result_path, description = await loop.run_in_executor(
+            None, _run_predict, tmp_path, prompt, show_masks, show_boxes, crop_option
+        )
 
-            if not result_path or not Path(result_path).exists():
-                raise FileNotFoundError(f"HF Space returned non-existent result file path: '{result_path}'")
+        if not result_path or not Path(result_path).exists():
+            raise FileNotFoundError(f"HF Space returned non-existent result file path: '{result_path}'")
 
-            masks_dir = Path(settings.LOCAL_STORAGE_PATH) / "masks"
-            masks_dir.mkdir(parents=True, exist_ok=True)
+        masks_dir = Path(settings.LOCAL_STORAGE_PATH) / "masks"
+        masks_dir.mkdir(parents=True, exist_ok=True)
 
-            src_ext = Path(result_path).suffix or ".png"
-            mask_filename = f"{uuid.uuid4().hex}{src_ext}"
-            mask_dest = masks_dir / mask_filename
-            shutil.copy2(result_path, mask_dest)
-            log.ok(f"Mask saved -> {mask_dest}  ({mask_dest.stat().st_size}B)")
+        src_ext = Path(result_path).suffix or ".png"
+        mask_filename = f"{uuid.uuid4().hex}{src_ext}"
+        mask_dest = masks_dir / mask_filename
+        shutil.copy2(result_path, mask_dest)
+        log.ok(f"Mask saved -> {mask_dest}  ({mask_dest.stat().st_size}B)")
 
-            with open(mask_dest, "rb") as f:
-                annotated_bytes = f.read()
-            annotated_b64 = base64.b64encode(annotated_bytes).decode("utf-8")
-            log.ok(f"Base64 encoded mask: {len(annotated_b64)} chars")
+        with open(mask_dest, "rb") as f:
+            annotated_bytes = f.read()
+        annotated_b64 = base64.b64encode(annotated_bytes).decode("utf-8")
+        log.ok(f"Base64 encoded mask: {len(annotated_b64)} chars")
 
-            return {
-                "annotated_image_b64": annotated_b64,
-                "description": description or "",
-                "status": "done",
-                "mask_path": str(mask_dest),
-            }
-        except (asyncio.TimeoutError, Exception) as hf_err:
-            log.warn(f"HF Space prediction notice/timeout: {hf_err} — returning fallback image")
-            with open(tmp_path, "rb") as f:
-                fallback_b64 = base64.b64encode(f.read()).decode("utf-8")
-            return {
-                "annotated_image_b64": fallback_b64,
-                "description": f"Surface layout mapped for prompt: '{prompt}'",
-                "status": "done",
-                "mask_path": "",
-            }
+        return {
+            "annotated_image_b64": annotated_b64,
+            "description": description or "",
+            "status": "ANALYZED",
+            "mask_path": str(mask_dest),
+        }
 
     except Exception as exc:
         log.error(f"analyze_image FAILED: {exc}")

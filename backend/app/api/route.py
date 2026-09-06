@@ -22,13 +22,31 @@ log = get_logger("route")
 
 router = APIRouter(prefix="/api", tags=["API Routes"])
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-if not (BASE_DIR / "bodaq_cat.json").exists() and (BASE_DIR / "backend" / "bodaq_cat.json").exists():
-    BASE_DIR = BASE_DIR / "backend"
+# Robust BASE_DIR resolution to locate bodaq_cat.json and storage_data
+_file_path = Path(__file__).resolve()
+_candidates = [
+    _file_path.parent.parent.parent.parent,  # workspace root
+    _file_path.parent.parent.parent,         # backend folder
+]
+
+BASE_DIR = _candidates[0]
+for _cand in _candidates:
+    if (_cand / "bodaq_cat.json").exists() or (_cand / "storage_data").exists():
+        BASE_DIR = _cand
+        break
 
 CATALOG_PATH = BASE_DIR / "bodaq_cat.json"
+if not CATALOG_PATH.exists() and (BASE_DIR / "backend" / "bodaq_cat.json").exists():
+    CATALOG_PATH = BASE_DIR / "backend" / "bodaq_cat.json"
+
 STORAGE_IMAGES_DIR = BASE_DIR / "storage_data" / "images"
+if not STORAGE_IMAGES_DIR.exists() and (BASE_DIR / "backend" / "storage_data" / "images").exists():
+    STORAGE_IMAGES_DIR = BASE_DIR / "backend" / "storage_data" / "images"
+
 STORAGE_DIR = BASE_DIR / "storage_data"
+if not STORAGE_DIR.exists() and (BASE_DIR / "backend" / "storage_data").exists():
+    STORAGE_DIR = BASE_DIR / "backend" / "storage_data"
+
 
 # In-memory catalogue state
 _raw_catalog: Dict[str, Any] = {}
@@ -512,7 +530,6 @@ async def segment_text_route(payload: SegmentTextRequest):
         "segments": fallback_segments,
         "fallback": True
     }
-
 
 @router.post("/upload-space")
 def upload_space(payload: UploadSpaceRequest):
