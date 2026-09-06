@@ -1,5 +1,8 @@
 import { CategorySummary, Material, Project, SpaceSegment } from '../types';
 
+export const RENDER_BACKEND_URL = 'https://vinyl-wraper-1.onrender.com';
+
+// By default, relative '/api' proxies through Node/Vite server to backend to avoid browser CORS issues.
 const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 

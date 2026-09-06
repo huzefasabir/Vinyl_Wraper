@@ -2,11 +2,35 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+import https from 'https';
+import { URL } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
+
+const TARGET_BACKEND = (
+  process.env.PYTHON_BACKEND_URL ||
+  process.env.VITE_API_TARGET ||
+  process.env.BACKEND_URL ||
+  'https://vinyl-wraper-1.onrender.com'
+).replace(/\/$/, '');
+
+function getBackendOptions(endpointPath: string, method: string = 'GET', extraHeaders: Record<string, string | number> = {}) {
+  const cleanPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
+  const parsed = new URL(cleanPath, TARGET_BACKEND);
+  const isHttps = parsed.protocol === 'https:';
+  const requester = isHttps ? https : http;
+  const options = {
+    hostname: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : (isHttps ? 443 : 80),
+    path: parsed.pathname + parsed.search,
+    method,
+    headers: extraHeaders,
+  };
+  return { requester, options };
+}
 
 const getCatalogFile = () => {
   if (fs.existsSync(path.join(process.cwd(), 'bodaq_cat.json'))) {
@@ -417,20 +441,14 @@ async function startServer() {
         return res.status(400).json({ error: 'Image data and query prompt are required' });
       }
 
-      // Try proxying to FastAPI backend on port 8000 first
+      // Proxy to FastAPI backend (Render / local)
       try {
         const postData = JSON.stringify({ imageData, query, confidenceThreshold: confidenceThreshold || 0.5 });
-        const proxyReq = http.request({
-          hostname: '127.0.0.1',
-          port: 8000,
-          path: '/api/segment-text',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
-          },
-          timeout: 45000,
-        }, (proxyRes) => {
+        const { requester, options } = getBackendOptions('/api/segment-text', 'POST', {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        });
+        const proxyReq = requester.request({ ...options, timeout: 45000 }, (proxyRes) => {
           let rawBody = '';
           proxyRes.on('data', chunk => rawBody += chunk);
           proxyRes.on('end', () => {
@@ -486,18 +504,18 @@ async function startServer() {
     }
   });
 
-  // ── Volka HF Space async job proxy → FastAPI :8000 ──────────────────────────
+  // ── Volka HF Space async job proxy → FastAPI ──────────────────────────
   app.post(['/api/volka-analyze', '/api/volko-analyze', '/api/volka/analyze', '/api/volko/analyze'], async (req, res) => {
     let responded = false;
     const done = (fn: () => void) => { if (!responded && !res.headersSent) { responded = true; fn(); } };
 
     try {
       const postData = JSON.stringify(req.body);
-      const proxyReq = http.request({
-        hostname: '127.0.0.1', port: 8000, path: '/api/volka-analyze', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
-        timeout: 10000,
-      }, (proxyRes) => {
+      const { requester, options } = getBackendOptions('/api/volka-analyze', 'POST', {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      });
+      const proxyReq = requester.request({ ...options, timeout: 10000 }, (proxyRes) => {
         let rawBody = '';
         proxyRes.on('data', (chunk) => (rawBody += chunk));
         proxyRes.on('end', () => done(() => {
@@ -508,11 +526,11 @@ async function startServer() {
       proxyReq.on('timeout', () => {
         console.warn('[volka-analyze proxy] FastAPI timed out');
         proxyReq.destroy();
-        done(() => res.status(503).json({ error: 'backend_unavailable', message: 'Python backend not reachable. Start it with: python main.py', reason: 'timeout' }));
+        done(() => res.status(503).json({ error: 'backend_unavailable', message: `Python backend at ${TARGET_BACKEND} not reachable.`, reason: 'timeout' }));
       });
       proxyReq.on('error', (err) => {
         console.warn('[volka-analyze proxy] FastAPI unreachable:', err.message);
-        done(() => res.status(503).json({ error: 'backend_unavailable', message: 'Python backend not reachable. Start it with: python main.py', details: err.message }));
+        done(() => res.status(503).json({ error: 'backend_unavailable', message: `Python backend at ${TARGET_BACKEND} not reachable.`, details: err.message }));
       });
       proxyReq.write(postData);
       proxyReq.end();
@@ -524,44 +542,36 @@ async function startServer() {
   // GET /api/volka-status/:jobId — poll result
   app.get(['/api/volka-status/:jobId', '/api/volko-status/:jobId', '/api/volka/status/:jobId', '/api/volko/status/:jobId'], (req, res) => {
     const jobId = req.params.jobId;
-    const proxyReq = http.request(
-      {
-        hostname: '127.0.0.1',
-        port: 8000,
-        path: `/api/volka-status/${encodeURIComponent(jobId)}`,
-        method: 'GET',
-        timeout: 8000,
-      },
-      (proxyRes) => {
-        let rawBody = '';
-        proxyRes.on('data', (chunk) => (rawBody += chunk));
-        proxyRes.on('end', () => {
-          res.status(proxyRes.statusCode || 200);
-          try { res.json(JSON.parse(rawBody)); }
-          catch { res.send(rawBody); }
-        });
-      }
-    );
+    const { requester, options } = getBackendOptions(`/api/volka-status/${encodeURIComponent(jobId)}`, 'GET', {});
+    const proxyReq = requester.request({ ...options, timeout: 8000 }, (proxyRes) => {
+      let rawBody = '';
+      proxyRes.on('data', (chunk) => (rawBody += chunk));
+      proxyRes.on('end', () => {
+        res.status(proxyRes.statusCode || 200);
+        try { res.json(JSON.parse(rawBody)); }
+        catch { res.send(rawBody); }
+      });
+    });
     proxyReq.on('timeout', () => {
       proxyReq.destroy();
       console.warn('[volka-status proxy] FastAPI timed out');
       res.status(503).json({
         error: 'backend_unavailable',
-        message: 'Python backend not reachable. Start it with: python main.py',
+        message: `Python backend at ${TARGET_BACKEND} not reachable.`,
       });
     });
     proxyReq.on('error', (err) => {
       console.warn('[volka-status proxy] FastAPI unreachable:', err.message);
       res.status(503).json({
         error: 'backend_unavailable',
-        message: 'Python backend not reachable. Start it with: python main.py',
+        message: `Python backend at ${TARGET_BACKEND} not reachable.`,
         details: err.message,
       });
     });
     proxyReq.end();
   });
 
-  // ── CV Vinyl Render proxy → FastAPI :8000 ───────────────────────────────────
+  // ── CV Vinyl Render proxy → FastAPI ───────────────────────────────────
   // POST /api/vinyl-render
   // Payload contains two base64 images (room photo + HF mask) plus a swatch path.
   // The body can be several MB, so we stream the response back via chunks and
@@ -570,31 +580,22 @@ async function startServer() {
     try {
       const postData = JSON.stringify(req.body);
       const contentLength = Buffer.byteLength(postData);
+      const { requester, options } = getBackendOptions('/api/vinyl-render', 'POST', {
+        'Content-Type': 'application/json',
+        'Content-Length': contentLength,
+      });
 
-      const proxyReq = http.request(
-        {
-          hostname: '127.0.0.1',
-          port: 8000,
-          path: '/api/vinyl-render',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': contentLength,
-          },
-          timeout: 120_000,   // 2 min — OpenCV pipeline on large images
-        },
-        (proxyRes) => {
-          // Stream response in chunks — composite PNG b64 can be several MB
-          const chunks: Buffer[] = [];
-          proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
-          proxyRes.on('end', () => {
-            const rawBody = Buffer.concat(chunks).toString('utf-8');
-            res.status(proxyRes.statusCode || 200);
-            try { res.json(JSON.parse(rawBody)); }
-            catch { res.send(rawBody); }
-          });
-        }
-      );
+      const proxyReq = requester.request({ ...options, timeout: 120_000 }, (proxyRes) => {
+        // Stream response in chunks — composite PNG b64 can be several MB
+        const chunks: Buffer[] = [];
+        proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          const rawBody = Buffer.concat(chunks).toString('utf-8');
+          res.status(proxyRes.statusCode || 200);
+          try { res.json(JSON.parse(rawBody)); }
+          catch { res.send(rawBody); }
+        });
+      });
 
       proxyReq.on('timeout', () => {
         proxyReq.destroy();
@@ -612,7 +613,7 @@ async function startServer() {
         if (!res.headersSent) {
           res.status(503).json({
             error: 'backend_unavailable',
-            message: 'Python backend not reachable. Start it with: python main.py',
+            message: `Python backend at ${TARGET_BACKEND} not reachable.`,
             details: err.message,
           });
         }

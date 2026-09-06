@@ -208,11 +208,15 @@ Create a `.env` file in the root directory (or update `.env.local`):
 # Google Gemini API Key for AI Interior Advisor
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# FastAPI Backend Configuration
+# Deployed Python FastAPI Backend Link (Render)
+VITE_API_TARGET=https://vinyl-wraper-1.onrender.com
+VITE_API_BASE_URL=https://vinyl-wraper-1.onrender.com/api
+PYTHON_BACKEND_URL=https://vinyl-wraper-1.onrender.com
+BACKEND_URL=https://vinyl-wraper-1.onrender.com
+
+# Local Development Configuration
 PORT=8000
 HOST=0.0.0.0
-
-# Express Proxy Server Port
 EXPRESS_PORT=3000
 ```
 
@@ -233,7 +237,8 @@ npm run dev:backend
 # or directly:
 python main.py
 ```
-*FastAPI Interactive Docs will be accessible at:* `http://localhost:8000/docs`
+*FastAPI Interactive Docs (Local):* `http://localhost:8000/docs`  
+*FastAPI Interactive Docs (Deployed Render):* `https://vinyl-wraper-1.onrender.com/docs`
 
 ---
 
@@ -259,7 +264,9 @@ python main.py
 
 ## 📡 API Routes & Documentation
 
-When running the FastAPI backend (`npm run dev:backend`), OpenAPI documentation is auto-generated at `http://localhost:8000/docs`.
+- **Production Live Backend**: `https://vinyl-wraper-1.onrender.com`
+- **Interactive OpenAPI Specs**: `https://vinyl-wraper-1.onrender.com/docs` (or local `http://localhost:8000/docs`)
+
 
 ### **Key Endpoints**:
 

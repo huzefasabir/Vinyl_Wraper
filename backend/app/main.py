@@ -31,14 +31,16 @@ app = FastAPI(
 cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
 if cors_origins_env == "*":
     allow_origins = ["*"]
+    allow_credentials = False
 else:
     allow_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+    allow_credentials = True
 
 # Enable CORS for Vite dev server, local clients, and deployed frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
