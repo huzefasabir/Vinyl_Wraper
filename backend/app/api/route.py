@@ -242,17 +242,21 @@ async def volka_analyze(payload: VolkaAnalyzeRequest, background_tasks: Backgrou
         except Exception as e:
             log.error(f"Failed to fetch image URL {raw_img[:60]}: {e}")
             raise HTTPException(status_code=400, detail=f"Failed to download image URL: {e}")
-    else:
-        swatch_path = _resolve_swatch_path(raw_img, None)
-        if swatch_path and swatch_path.exists() and swatch_path.is_file():
-            with open(swatch_path, "rb") as f:
-                image_bytes = f.read()
-        else:
-            raw_b64 = raw_img.split(",", 1)[1] if "," in raw_img else raw_img
-            try:
-                image_bytes = base64.b64decode(raw_b64)
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid base64 image data")
+    elif len(raw_img) < 512 and not raw_img.startswith("data:image"):
+        try:
+            swatch_path = _resolve_swatch_path(raw_img, None)
+            if swatch_path and swatch_path.exists() and swatch_path.is_file():
+                with open(swatch_path, "rb") as f:
+                    image_bytes = f.read()
+        except Exception:
+            pass
+
+    if not image_bytes:
+        raw_b64 = raw_img.split(",", 1)[1] if "," in raw_img else raw_img
+        try:
+            image_bytes = base64.b64decode(raw_b64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid base64 image data")
 
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Failed to obtain image data")
