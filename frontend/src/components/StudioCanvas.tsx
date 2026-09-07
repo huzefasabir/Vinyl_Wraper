@@ -447,6 +447,10 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
     }
   };
 
+  // Touch pinch-to-zoom references (2-finger zoom)
+  const initialPinchDistRef = useRef<number | null>(null);
+  const initialPinchZoomRef = useRef<number>(1);
+
   return (
     <main className="flex-1 flex flex-col h-full bg-[#060f16] relative overflow-hidden select-none">
       {/* 1. Canvas Top Utility Bar */}
@@ -540,17 +544,17 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           {/* Zoom controls */}
           <div className="flex items-center bg-[#182028] rounded-lg border border-[#3e484f]/40 p-0.5">
             <button
-              onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))}
+              onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))}
               className="p-1 text-[#87929a] hover:text-[#dae3ee] hover:bg-[#222b33] rounded"
               title="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[10px] font-mono text-[#dae3ee] px-1.5">
+            <span className="text-[10px] font-mono text-[#38bdf8] px-1.5 font-bold">
               {Math.round(zoom * 100)}%
             </span>
             <button
-              onClick={() => setZoom((z) => Math.min(2.0, z + 0.1))}
+              onClick={() => setZoom((z) => Math.min(3.0, Math.round((z + 0.25) * 100) / 100))}
               className="p-1 text-[#87929a] hover:text-[#dae3ee] hover:bg-[#222b33] rounded"
               title="Zoom In"
             >
@@ -560,8 +564,12 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
           <button
             onClick={() => setZoom(1)}
-            className="p-1.5 rounded-lg bg-[#182028] border border-[#3e484f]/40 text-[#87929a] hover:text-[#dae3ee]"
-            title="Reset Zoom"
+            className={`p-1.5 rounded-lg border transition-colors ${
+              zoom !== 1
+                ? 'bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8]'
+                : 'bg-[#182028] border-[#3e484f]/40 text-[#87929a] hover:text-[#dae3ee]'
+            }`}
+            title="Reset Zoom (100%)"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -571,6 +579,9 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       {/* 2. Main Viewport Area */}
       <div
         ref={viewportRef}
+        onWheel={(e) => {
+          setZoom((z) => Math.min(3.0, Math.max(0.5, Math.round((z - e.deltaY * 0.0015) * 100) / 100)));
+        }}
         onMouseDown={(e) => {
           if (compareMode === 'split') {
             setIsDraggingSplit(true);
@@ -597,7 +608,14 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           handleCanvasMouseUp();
         }}
         onTouchStart={(e) => {
-          if (compareMode === 'split' && e.touches.length > 0) {
+          if (e.touches.length === 2) {
+            const dist = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialPinchDistRef.current = dist;
+            initialPinchZoomRef.current = zoom;
+          } else if (compareMode === 'split' && e.touches.length === 1) {
             setIsDraggingSplit(true);
             if (viewportRef.current) {
               const rect = viewportRef.current.getBoundingClientRect();
@@ -607,16 +625,27 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           }
         }}
         onTouchMove={(e) => {
-          if (compareMode === 'split' && isDraggingSplit && viewportRef.current && e.touches.length > 0) {
+          if (e.touches.length === 2 && initialPinchDistRef.current !== null) {
+            const dist = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            const ratio = dist / initialPinchDistRef.current;
+            const newZoom = Math.min(3.0, Math.max(0.5, Math.round(initialPinchZoomRef.current * ratio * 100) / 100));
+            setZoom(newZoom);
+          } else if (compareMode === 'split' && isDraggingSplit && viewportRef.current && e.touches.length === 1) {
             const rect = viewportRef.current.getBoundingClientRect();
             const pct = Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
             setSplitPos(pct);
           }
         }}
-        onTouchEnd={() => {
+        onTouchEnd={(e) => {
+          if (e.touches.length < 2) {
+            initialPinchDistRef.current = null;
+          }
           setIsDraggingSplit(false);
         }}
-        className="flex-1 relative flex items-center justify-center p-3 sm:p-6 overflow-hidden select-none"
+        className="flex-1 relative flex items-center justify-center p-3 sm:p-6 overflow-hidden select-none touch-none"
       >
         <div
           className="relative max-w-5xl w-full aspect-video rounded-2xl overflow-hidden shadow-2xl border border-[#3e484f]/60 bg-[#0b141c] flex items-center justify-center group"
@@ -719,9 +748,9 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
             </svg>
           )}
 
-          {/* ── Wrap Status Badge ───────────────────────────────────────── */}
+          {/* ── Wrap Status Badge (Desktop only) ───────────────────────────────────────── */}
           {wrapApplied ? (
-            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 bg-[#0b141c]/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#38bdf8]/50 shadow-lg shadow-[#38bdf8]/10 pointer-events-none">
+            <div className="hidden lg:flex absolute bottom-4 right-4 z-20 items-center gap-2 bg-[#0b141c]/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#38bdf8]/50 shadow-lg shadow-[#38bdf8]/10 pointer-events-none">
               {cvRenderStatus === 'rendering' && (
                 <Loader2 className="w-3 h-3 text-[#38bdf8] animate-spin flex-shrink-0" />
               )}
@@ -749,15 +778,15 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
               </div>
             </div>
           ) : (
-            <div className="absolute bottom-4 right-4 z-20 bg-[#0b141c]/80 backdrop-blur-md px-3 py-1 rounded-md text-[11px] font-mono font-semibold tracking-wider text-[#87929a] border border-[#3e484f]/40 shadow-lg flex items-center gap-2 pointer-events-none">
+            <div className="hidden lg:flex absolute bottom-4 right-4 z-20 bg-[#0b141c]/80 backdrop-blur-md px-3 py-1 rounded-md text-[11px] font-mono font-semibold tracking-wider text-[#87929a] border border-[#3e484f]/40 shadow-lg items-center gap-2 pointer-events-none">
               <span className="w-2 h-2 rounded-full bg-[#87929a]" />
               <span>HF PREVIEW</span>
             </div>
           )}
 
-          {/* Active Tool HUD */}
+          {/* Active Tool HUD (Desktop only) */}
           {activeTool !== 'layers' && (
-            <div className="absolute top-4 left-4 z-20 bg-[#0b141c]/85 backdrop-blur-md px-3 py-1.5 rounded-lg text-xs text-[#dae3ee] border border-[#3e484f]/60 shadow-lg flex items-center gap-2">
+            <div className="hidden lg:flex absolute top-4 left-4 z-20 bg-[#0b141c]/85 backdrop-blur-md px-3 py-1.5 rounded-lg text-xs text-[#dae3ee] border border-[#3e484f]/60 shadow-lg items-center gap-2">
               <span className="text-[#38bdf8] font-mono uppercase font-semibold text-[10px]">
                 Active Tool:
               </span>
