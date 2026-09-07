@@ -28,7 +28,8 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterNewOnly, setFilterNewOnly] = useState(false);
   const [filterFireRetardantOnly, setFilterFireRetardantOnly] = useState(false);
-  const [favorites, setFavorites] = useState<string[]>(['ogw01', 'pm003', 'blc01']);
+  const [filterFavoritesOnly, setFilterFavoritesOnly] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
 
   // Sync with backend on mount
   useEffect(() => {
@@ -78,12 +79,21 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
 
   const toggleFavorite = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((fId) => fId !== id) : [...prev, id]
-    );
+    e.preventDefault();
+    setFavorites((prev) => {
+      const isFav = prev.includes(id) || prev.includes(id.toLowerCase());
+      if (isFav) {
+        return prev.filter((fId) => fId !== id && fId !== id.toLowerCase());
+      } else {
+        return [...prev, id];
+      }
+    });
   };
 
   const filteredMaterials = materials.filter((m) => {
+    const isFavMat = favorites.includes(m.id) || favorites.includes(m.code.toLowerCase()) || favorites.includes(m.id.toLowerCase());
+    const matchesFav = !filterFavoritesOnly || isFavMat;
+
     // If searching, search across or within
     const matchesSearch =
       !searchQuery.trim() ||
@@ -97,7 +107,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
     if (searchQuery.trim()) {
       const matchesNew = !filterNewOnly || m.isNew;
       const matchesFire = !filterFireRetardantOnly || m.isFireRetardant;
-      return matchesSearch && matchesNew && matchesFire;
+      return matchesSearch && matchesNew && matchesFire && matchesFav;
     }
 
     const matchesCat =
@@ -112,7 +122,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
     const matchesNew = !filterNewOnly || m.isNew;
     const matchesFire = !filterFireRetardantOnly || m.isFireRetardant;
 
-    return matchesCat && matchesSub && matchesNew && matchesFire;
+    return matchesCat && matchesSub && matchesNew && matchesFire && matchesFav;
   });
 
   return (
@@ -146,7 +156,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
           <div className="flex-1 min-w-0">
             <span className="font-semibold text-[#38bdf8]">Segmentation running in background</span>
             <span className="text-[#87929a] ml-2">
-              We are processing your Image <span className="text-[#dae3ee] font-mono">"{targetComponent}"</span> — pick a vinyl style while you wait.
+              Segmentation model is processing <span className="text-[#dae3ee] font-mono">"{targetComponent}"</span> — pick a vinyl style while you wait.
             </span>
           </div>
           <div className="w-24 h-1 bg-[#222b33] rounded-full overflow-hidden flex-shrink-0">
@@ -176,7 +186,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
         <div className="flex items-center gap-3.5">
           <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-[#0b141c] shrink-0 border border-[#3e484f] shadow-inner">
             <img
-              src={activeSpace?.hfSegmentedImage || activeSpace?.previewImage || activeSpace?.thumbnailUrl || activeSpace?.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA'}
+              src={activeSpace?.previewImage || activeSpace?.thumbnailUrl || activeSpace?.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA'}
               alt="Active Space Preview"
               className="w-full h-full object-cover"
             />
@@ -189,7 +199,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
             <div className="flex items-center gap-2 mb-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-[11px] font-mono uppercase tracking-wider text-[#38bdf8] font-bold">
-                {activeSpace?.hfSegmentedImage ? 'Hugging Face Grounded-SAM Segmented' : 'Active Target Surface'}
+                {activeSpace?.hfSegmentedImage ? 'Segmented Image' : 'Active Target Surface'}
               </span>
             </div>
             <div className="text-xs sm:text-sm text-[#dae3ee]">
@@ -245,8 +255,8 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
             <button
               onClick={() => setFilterNewOnly(!filterNewOnly)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${filterNewOnly
-                  ? 'bg-[#38bdf8]/20 text-[#38bdf8] border-[#38bdf8]'
-                  : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
+                ? 'bg-[#38bdf8]/20 text-[#38bdf8] border-[#38bdf8]'
+                : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
                 }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -256,12 +266,23 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
             <button
               onClick={() => setFilterFireRetardantOnly(!filterFireRetardantOnly)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${filterFireRetardantOnly
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
-                  : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+                : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
                 }`}
             >
               <Flame className="w-3.5 h-3.5" />
               <span>Fire Retardant</span>
+            </button>
+
+            <button
+              onClick={() => setFilterFavoritesOnly(!filterFavoritesOnly)}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${filterFavoritesOnly
+                ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 shadow-sm'
+                : 'bg-[#182028] text-[#87929a] border-[#3e484f]/40 hover:text-[#dae3ee]'
+                }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${filterFavoritesOnly ? 'fill-rose-400 text-rose-400' : ''}`} />
+              <span>Liked ({favorites.length})</span>
             </button>
           </div>
         </div>
@@ -274,15 +295,15 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
             key={cat.id}
             onClick={() => handleCategorySelect(cat.name)}
             className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all flex items-center gap-2 border ${selectedCategory.toLowerCase() === cat.name.toLowerCase()
-                ? 'bg-[#38bdf8] text-[#00354a] font-semibold border-[#38bdf8] shadow-lg shadow-[#38bdf8]/20'
-                : 'bg-[#182028] text-[#bdc8d1] hover:text-[#dae3ee] border-[#3e484f]/40 hover:border-[#38bdf8]/50'
+              ? 'bg-[#38bdf8] text-[#00354a] font-semibold border-[#38bdf8] shadow-lg shadow-[#38bdf8]/20'
+              : 'bg-[#182028] text-[#bdc8d1] hover:text-[#dae3ee] border-[#3e484f]/40 hover:border-[#38bdf8]/50'
               }`}
           >
             <span>{cat.name}</span>
             <span
               className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${selectedCategory.toLowerCase() === cat.name.toLowerCase()
-                  ? 'bg-[#00354a]/20 text-[#00354a]'
-                  : 'bg-[#222b33] text-[#87929a]'
+                ? 'bg-[#00354a]/20 text-[#00354a]'
+                : 'bg-[#222b33] text-[#87929a]'
                 }`}
             >
               {cat.count}
@@ -296,26 +317,24 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
         <button
           onClick={() => setSubCategory('all')}
           className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${subCategory === 'all'
-              ? 'bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/40 font-semibold shadow-xs'
-              : 'text-[#87929a] hover:text-[#dae3ee] hover:bg-[#182028]'
+            ? 'bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/40 font-semibold shadow-xs'
+            : 'text-[#87929a] hover:text-[#dae3ee] hover:bg-[#182028]'
             }`}
         >
-          <span>All {selectedCatObj?.name || 'Category'}</span>
+          <span>All {selectedCatObj ? selectedCatObj.name : ''} ({selectedCatObj ? selectedCatObj.count : filteredMaterials.length})</span>
         </button>
 
         {currentSubCategories.map((sub) => (
           <button
             key={sub.id}
             onClick={() => setSubCategory(sub.id)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${subCategory === sub.id
-                ? 'bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/40 font-semibold shadow-xs'
-                : 'text-[#87929a] hover:text-[#dae3ee] hover:bg-[#182028]'
+            className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${subCategory.toLowerCase() === sub.id.toLowerCase()
+              ? 'bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/40 font-semibold shadow-xs'
+              : 'text-[#87929a] hover:text-[#dae3ee] hover:bg-[#182028]'
               }`}
           >
             <span>{sub.name}</span>
-            {'count' in sub && sub.count !== undefined && (
-              <span className="text-[10px] opacity-70 font-mono">({sub.count})</span>
-            )}
+            <span className="text-[10px] opacity-70 font-mono">({sub.count})</span>
           </button>
         ))}
       </div>
@@ -325,7 +344,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
         <span>
           Showing <strong className="text-[#dae3ee] font-mono">{filteredMaterials.length}</strong> styles
         </span>
-        {(selectedCategory !== 'all' || subCategory !== 'all' || searchQuery || filterNewOnly || filterFireRetardantOnly) && (
+        {(selectedCategory !== 'all' || subCategory !== 'all' || searchQuery || filterNewOnly || filterFireRetardantOnly || filterFavoritesOnly) && (
           <button
             onClick={() => {
               setSelectedCategory('all');
@@ -333,6 +352,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
               setSearchQuery('');
               setFilterNewOnly(false);
               setFilterFireRetardantOnly(false);
+              setFilterFavoritesOnly(false);
             }}
             className="text-[#38bdf8] hover:underline text-xs"
           >
@@ -343,33 +363,30 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
 
       {/* 5. Materials Grid with Primary CTA: "Apply to [Component] in Visualizer →" */}
       {filteredMaterials.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-[#141c24]/60 rounded-2xl border border-[#3e484f]/40 flex flex-col items-center justify-center shadow-lg">
-          <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
-            <span className="material-symbols-outlined text-[24px]">search_off</span>
-          </div>
-          <h4 className="text-base font-bold text-[#dae3ee] mb-1">Vinyl style not found</h4>
-          <p className="text-xs text-[#87929a] max-w-md">
-            This style is currently unavailable. Please try again with another style.
+        <div className="text-center py-20 bg-[#141c24] rounded-2xl border border-[#3e484f]/30 my-8">
+          <Search className="w-10 h-10 text-[#87929a] mx-auto mb-3 opacity-50" />
+          <h3 className="text-lg font-semibold text-[#dae3ee]">No Vinyl Wraps Found</h3>
+          <p className="text-xs text-[#87929a] mt-1">
+            Try adjusting your search filters or selecting a different category.
           </p>
-          {(selectedCategory !== 'all' || subCategory !== 'all' || searchQuery || filterNewOnly || filterFireRetardantOnly) && (
-            <button
-              onClick={() => {
-                setSelectedCategory('all');
-                setSubCategory('all');
-                setSearchQuery('');
-                setFilterNewOnly(false);
-                setFilterFireRetardantOnly(false);
-              }}
-              className="mt-4 px-4 py-2 bg-[#182028] hover:bg-[#222b33] text-[#38bdf8] border border-[#38bdf8]/30 hover:border-[#38bdf8] rounded-xl text-xs font-semibold transition-all"
-            >
-              Reset Filters & View All
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setSelectedCategory('all');
+              setSubCategory('all');
+              setFilterNewOnly(false);
+              setFilterFireRetardantOnly(false);
+              setFilterFavoritesOnly(false);
+            }}
+            className="mt-4 px-4 py-2 bg-[#38bdf8] hover:bg-[#8ed5ff] text-[#00354a] font-semibold text-xs rounded-xl transition-all shadow-md"
+          >
+            Reset All Filters
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {filteredMaterials.map((mat) => {
-            const isFav = favorites.includes(mat.id) || favorites.includes(mat.code.toLowerCase());
+            const isFav = favorites.includes(mat.id) || favorites.includes(mat.code.toLowerCase()) || favorites.includes(mat.id.toLowerCase());
 
             return (
               <div
@@ -397,21 +414,26 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
 
                     {/* NEW Badge */}
                     {mat.isNew && (
-                      <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded bg-[#38bdf8] text-[#00354a] font-mono text-[10px] font-bold tracking-wider shadow">
+                      <span className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded bg-[#38bdf8] text-[#00354a] font-mono text-[10px] font-bold tracking-wider shadow">
                         NEW
                       </span>
                     )}
 
-                    {/* Favorite Button */}
+                    {/* Favorite / Like Button */}
                     <button
+                      type="button"
                       onClick={(e) => toggleFavorite(mat.id, e)}
-                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#0b141c]/70 backdrop-blur-md flex items-center justify-center text-[#dae3ee] hover:text-rose-400 transition-colors border border-[#3e484f]/40"
+                      title={isFav ? "Remove from Liked Vinyls" : "Like this Vinyl Style"}
+                      className={`absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full backdrop-blur-md flex items-center justify-center transition-all duration-200 border shadow-md ${isFav
+                        ? 'bg-rose-500/20 border-rose-500/60 text-rose-500 scale-105'
+                        : 'bg-[#0b141c]/80 border-[#3e484f]/60 text-[#dae3ee] hover:text-rose-400 hover:border-rose-400/50 hover:bg-[#0b141c]'
+                        }`}
                     >
-                      <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-rose-500 text-rose-500' : ''}`} />
+                      <Heart className={`w-4 h-4 transition-transform duration-200 active:scale-125 ${isFav ? 'fill-rose-500 text-rose-500' : ''}`} />
                     </button>
 
                     {/* View Specs Hover Button */}
-                    <div className="absolute inset-0 bg-[#0b141c]/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <div className="absolute inset-0 bg-[#0b141c]/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-10 pointer-events-none">
                       <span className="px-3 py-1.5 rounded-lg bg-[#182028] text-xs font-semibold text-[#dae3ee] border border-[#3e484f] flex items-center gap-1.5 shadow-lg">
                         <Eye className="w-3.5 h-3.5 text-[#38bdf8]" />
                         View PBR Specs

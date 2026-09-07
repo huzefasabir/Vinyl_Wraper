@@ -5,11 +5,10 @@ export const PRESET_SPACES: SpaceImage[] = [
     id: 'kitchen-modern',
     title: 'Modern Kitchen Renovation',
     type: 'kitchen',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCQuJZFKqEGK-8X4BRaqMBfpDwX7IVsLdyIOy5HcKSz8NqnuOu_p0w6_ssEzWXo07BDXUlqXDCY19dtlAzh9-3oXCAkaYt4coReaYhBCRYYz0Ysya_wXsBcQmnvsXFuY9TyqRjCKojdDv1f6oyKqFIM1fF3DKwQK-vNipS2aAU2IcUMmRQXPhv7KdrPwQjBIMp_X3GvwR9tK46-7ciETAKarbFn4QOQE8LcYNROfP-R7Zhlpr1wEbI_',
-    thumbnailUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCQuJZFKqEGK-8X4BRaqMBfpDwX7IVsLdyIOy5HcKSz8NqnuOu_p0w6_ssEzWXo07BDXUlqXDCY19dtlAzh9-3oXCAkaYt4coReaYhBCRYYz0Ysya_wXsBcQmnvsXFuY9TyqRjCKojdDv1f6oyKqFIM1fF3DKwQK-vNipS2aAU2IcUMmRQXPhv7KdrPwQjBIMp_X3GvwR9tK46-7ciETAKarbFn4QOQE8LcYNROfP-R7Zhlpr1wEbI_',
+    imageUrl: '/api/images/default_image/Kitchen.jpeg',
+    thumbnailUrl: '/api/images/default_image/Kitchen.jpeg',
     aspectRatio: 16 / 9,
-    beforeImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCQuJZFKqEGK-8X4BRaqMBfpDwX7IVsLdyIOy5HcKSz8NqnuOu_p0w6_ssEzWXo07BDXUlqXDCY19dtlAzh9-3oXCAkaYt4coReaYhBCRYYz0Ysya_wXsBcQmnvsXFuY9TyqRjCKojdDv1f6oyKqFIM1fF3DKwQK-vNipS2aAU2IcUMmRQXPhv7KdrPwQjBIMp_X3GvwR9tK46-7ciETAKarbFn4QOQE8LcYNROfP-R7Zhlpr1wEbI_',
-    afterImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA',
+    beforeImageUrl: '/api/images/default_image/Kitchen.jpeg',
     segments: [
       {
         id: 'seg-upper-cabinets',
@@ -86,13 +85,48 @@ export const PRESET_SPACES: SpaceImage[] = [
     ]
   },
   {
-    id: 'bathroom-luxury',
-    title: 'Minimalist Ensuite Vanity',
-    type: 'bathroom',
-    imageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1400&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=500&q=80',
+    id: 'wardrobe-modern',
+    title: 'Contemporary Wardrobe Suite',
+    type: 'wardrobe',
+    imageUrl: '/api/images/default_image/Wardrobe.jpeg',
+    thumbnailUrl: '/api/images/default_image/Wardrobe.jpeg',
     aspectRatio: 16 / 9,
-    beforeImageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1400&q=80',
+    beforeImageUrl: '/api/images/default_image/Wardrobe.jpeg',
+    segments: [
+      {
+        id: 'seg-wardrobe-doors',
+        name: 'Wardrobe Cabinet Doors',
+        boundingBox: { x: 0.20, y: 0.20, width: 0.60, height: 0.65 },
+        renderParameters: {
+          grainDirection: 0,
+          roughness: 65,
+          reflectivity: 35,
+          textureScale: 1.1,
+          ambientLight: 85
+        }
+      },
+      {
+        id: 'seg-drawers-storage',
+        name: 'Lower Storage Drawers',
+        boundingBox: { x: 0.20, y: 0.65, width: 0.60, height: 0.20 },
+        renderParameters: {
+          grainDirection: 0,
+          roughness: 45,
+          reflectivity: 62,
+          textureScale: 1.0,
+          ambientLight: 80
+        }
+      }
+    ]
+  },
+  {
+    id: 'washroom-luxury',
+    title: 'Luxury Washroom Vanity',
+    type: 'washroom',
+    imageUrl: '/api/images/default_image/Washroom.jpeg',
+    thumbnailUrl: '/api/images/default_image/Washroom.jpeg',
+    aspectRatio: 16 / 9,
+    beforeImageUrl: '/api/images/default_image/Washroom.jpeg',
     segments: [
       {
         id: 'seg-vanity-cabinet',
@@ -116,41 +150,6 @@ export const PRESET_SPACES: SpaceImage[] = [
           reflectivity: 90,
           textureScale: 1.4,
           ambientLight: 92
-        }
-      }
-    ]
-  },
-  {
-    id: 'office-executive',
-    title: 'Executive Studio Desk & Credenza',
-    type: 'office',
-    imageUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1400&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=500&q=80',
-    aspectRatio: 16 / 9,
-    beforeImageUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1400&q=80',
-    segments: [
-      {
-        id: 'seg-desk-top',
-        name: 'Executive Desktop Surface',
-        boundingBox: { x: 0.20, y: 0.60, width: 0.60, height: 0.25 },
-        renderParameters: {
-          grainDirection: 90,
-          roughness: 65,
-          reflectivity: 35,
-          textureScale: 1.1,
-          ambientLight: 85
-        }
-      },
-      {
-        id: 'seg-back-credenza',
-        name: 'Rear Modular Storage',
-        boundingBox: { x: 0.15, y: 0.25, width: 0.70, height: 0.35 },
-        renderParameters: {
-          grainDirection: 0,
-          roughness: 45,
-          reflectivity: 62,
-          textureScale: 1.5,
-          ambientLight: 80
         }
       }
     ]

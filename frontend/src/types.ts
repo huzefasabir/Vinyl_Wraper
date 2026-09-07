@@ -92,7 +92,7 @@ export type VolkaJobStatus = 'idle' | 'pending' | 'done' | 'error';
 export interface SpaceImage {
   id: string;
   title: string;
-  type: 'kitchen' | 'bathroom' | 'office' | 'custom';
+  type: 'kitchen' | 'wardrobe' | 'washroom' | 'bathroom' | 'office' | 'custom';
   imageUrl: string;
   thumbnailUrl: string;
   aspectRatio: number;

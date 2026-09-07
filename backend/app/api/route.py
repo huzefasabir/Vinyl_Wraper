@@ -697,9 +697,39 @@ async def vinyl_render_endpoint(payload: VinylRenderRequest):
     import cv2 as _cv2
 
     def _decode(b64: str):
+        if not b64:
+            raise ValueError("Empty image data provided")
+        if b64.startswith("http://") or b64.startswith("https://"):
+            import urllib.request
+            req = urllib.request.Request(b64, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                arr = np.frombuffer(resp.read(), np.uint8)
+                img = _cv2.imdecode(arr, _cv2.IMREAD_COLOR)
+                if img is not None:
+                    return img
+        if len(b64) < 1024 and not b64.startswith("data:image"):
+            resolved = _resolve_swatch_path(b64, None)
+            if resolved and resolved.exists() and resolved.is_file():
+                img = _cv2.imread(str(resolved))
+                if img is not None:
+                    return img
+            clean = b64.replace("\\", "/").lstrip("/")
+            for pref in ["api/images/", "storage_data/images/", "storage_data/", "images/"]:
+                if clean.startswith(pref):
+                    clean = clean[len(pref):]
+            cand = STORAGE_DIR / clean
+            if cand.exists() and cand.is_file():
+                img = _cv2.imread(str(cand))
+                if img is not None:
+                    return img
+
         raw = b64.split(",", 1)[1] if "," in b64 else b64
-        arr = np.frombuffer(_b64.b64decode(raw), np.uint8)
-        img = _cv2.imdecode(arr, _cv2.IMREAD_COLOR)
+        try:
+            arr = np.frombuffer(_b64.b64decode(raw), np.uint8)
+            img = _cv2.imdecode(arr, _cv2.IMREAD_COLOR)
+        except Exception:
+            img = None
+
         if img is None:
             raise ValueError("Failed to decode base64 image")
         return img
@@ -816,61 +846,3 @@ class AiSuggestRequest(BaseModel):
     spaceType: Optional[str] = "kitchen"
     roomVibe: Optional[str] = "modern luxury"
     existingElements: Optional[str] = "neutral surroundings"
-
-@router.post("/ai-suggest")
-async def ai_suggest(payload: AiSuggestRequest):
-    api_key = os.getenv("GEMINI_API_KEY")
-    if api_key:
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            prompt = f"""You are an elite architectural surface designer and material specialist.
-Suggest optimal architectural vinyl wrap combinations from the Bodaq catalogue (Wood, Basic solids, Stone & Marble, Natural Surface, Metal) for a {payload.spaceType} space with {payload.roomVibe} aesthetic and {payload.existingElements}.
-Return valid JSON without markdown fences:
-{{
-  "designTheme": "Short theme title",
-  "paletteMood": "Atmospheric description in 2 sentences",
-  "recommendedSkus": ["OGW01", "BLC01", "PM003"],
-  "zonePairings": [
-    {{"zone": "Upper Cabinets", "material": "Noble Oak (OGW01)", "finish": "Optical Grain Wood", "why": "Adds tactile warmth without glare."}},
-    {{"zone": "Countertop & Island", "material": "Premium Marble (PM003)", "finish": "Stone & Marble", "why": "Architectural centerpiece with continuous veining."}}
-  ],
-  "lightingTip": "Position LED strip lighting at 3000K warm white to accentuate the optical grain."
-}}"""
-            res = model.generate_content(prompt)
-            clean_txt = res.text.replace("```json", "").replace("```", "").strip()
-            parsed = json.loads(clean_txt)
-            return {"success": True, "advisor": parsed}
-        except Exception as e:
-            print(f"Gemini API error: {e}")
-
-    return {
-        "success": True,
-        "advisor": {
-            "designTheme": "Architectural Biophilic Contrast",
-            "paletteMood": "An organic pairing of authentic optical wood grain textures grounded by matte monolithic basics and polished premium marble accents.",
-            "recommendedSkus": ["OGW01", "BLC01", "PM003"],
-            "zonePairings": [
-                {
-                    "zone": "Upper Wall Cabinets",
-                    "material": "Noble Oak (OGW01)",
-                    "finish": "Optical Grain Wood",
-                    "why": "Deep optical wood texture delivers authentic tactile warmth under focused downlights."
-                },
-                {
-                    "zone": "Waterfall Island Countertop",
-                    "material": "Premium Marble (PM003)",
-                    "finish": "Stone & Marble",
-                    "why": "Creates an opulent focal centerpiece with scratch-resistant self-healing film."
-                },
-                {
-                    "zone": "Base Storage Units",
-                    "material": "Mono Blanc Matte (BLC01)",
-                    "finish": "Basic Super Matt",
-                    "why": "Zero-reflection anti-fingerprint surface provides solid architectural grounding."
-                }
-            ],
-            "lightingTip": "Position 3000K warm LED illumination at 45° grazing angle to highlight the embossed optical grain."
-        }
-    }

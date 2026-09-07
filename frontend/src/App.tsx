@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
@@ -40,7 +41,7 @@ class ErrorBoundary extends React.Component<
         <NotFoundPage
           onNavigate={() => {
             this.setState({ hasError: false, error: null });
-            window.location.reload();
+            window.location.href = '/';
           }}
           errorMessage={this.state.error?.message || 'An unexpected application error occurred.'}
         />
@@ -53,14 +54,34 @@ class ErrorBoundary extends React.Component<
 export default function App() {
   return (
     <ErrorBoundary>
-      <MainApp />
+      <BrowserRouter>
+        <MainApp />
+      </BrowserRouter>
     </ErrorBoundary>
   );
 }
 
 function MainApp() {
-  // Navigation
-  const [currentView, setCurrentView] = useState<'landing' | 'visualizer' | 'catalog' | '404'>('landing');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine current active view based on URL route path
+  const getCurrentView = (): 'landing' | 'visualizer' | 'catalog' | '404' => {
+    const path = location.pathname.toLowerCase();
+    if (path === '/' || path === '') return 'landing';
+    if (path.startsWith('/visualizer')) return 'visualizer';
+    if (path.startsWith('/catalog') || path.startsWith('/catalogue')) return 'catalog';
+    return '404';
+  };
+
+  const currentView = getCurrentView();
+
+  const handleNavigate = (view: 'landing' | 'visualizer' | 'catalog' | '404') => {
+    if (view === 'landing') navigate('/');
+    else if (view === 'visualizer') navigate('/visualizer');
+    else if (view === 'catalog') navigate('/catalog');
+  };
+
   const [notFoundError, setNotFoundError] = useState<string>('');
 
   // Active space, segments & target component
@@ -144,7 +165,6 @@ function MainApp() {
           setCurrentSpace((prev) => ({
             ...prev,
             hfSegmentedImage: res.hfSegmentedImage,
-            previewImage: res.hfSegmentedImage,
             volkaStatus: 'done',
           }));
           showToast('HF Space segmentation complete — generating vinyl preview');
@@ -176,7 +196,7 @@ function MainApp() {
             setCurrentSpace((prev) => ({ ...prev, volkaStatus: 'error' }));
             showToast('HF Space segmentation failed after 3 attempts. Please re-upload your image.');
             setTimeout(() => {
-              setCurrentView('landing');
+              navigate('/');
             }, 2500);
           }
         }
@@ -296,11 +316,7 @@ function MainApp() {
       showToast(`"${targetName}" sent to HF Space — processing while you pick a vinyl style`);
     }
 
-    setCurrentView('catalog');
-  };
-
-  const handleDetectCustomComponent = async (_query: string) => {
-    // AI Vision Locate removed — no-op
+    navigate('/catalog');
   };
 
   // Apply material to a specific zone
@@ -346,18 +362,6 @@ function MainApp() {
     }
   };
 
-  // Apply full AI generated palette to zones
-  const handleApplyPalette = (materials: Material[]) => {
-    if (materials.length === 0) return;
-    const nextSegments = segments.map((seg, idx) => ({
-      ...seg,
-      appliedMaterial: materials[idx % materials.length]
-    }));
-    setSegments(nextSegments);
-    pushHistory(nextSegments);
-    showToast('Applied AI Curated Material Palette');
-  };
-
   // Open PBR Specs Inspector Modal
   const handleOpenSpecsModal = (material: Material) => {
     setInspectedMaterial(material);
@@ -396,139 +400,156 @@ function MainApp() {
       {/* 1. Global Navigation Header */}
       <Header
         currentView={currentView}
-        onNavigate={setCurrentView}
+        onNavigate={handleNavigate}
       />
 
-      {/* 2. Main Views Switcher */}
+      {/* 2. Main Views Switcher via react-router-dom Routes */}
       <div className={`flex-1 flex flex-col pt-16 ${currentView === 'visualizer' ? 'h-[calc(100vh-64px)] min-h-0 overflow-hidden' : ''
         }`}>
-        {currentView === 'landing' && (
-          <LandingPage
-            onSelectSpace={handleSelectSpace}
-            onConfirmTargetAndProceed={(space, targetName, jobId, visionResult) =>
-              handleConfirmTargetAndProceed(space, targetName, jobId, visionResult)
-            }
-            onNavigateToStudio={() => setCurrentView('visualizer')}
-            onNavigateToCatalog={() => setCurrentView('catalog')}
-            onOpenSpecsModal={handleOpenSpecsModal}
-          />
-        )}
-
-        {currentView === 'visualizer' && (
-          <div className="w-full h-full flex overflow-hidden relative">
-            {/* Floating button to restore Left Panel when closed */}
-            {!isLeftPanelOpen && (
-              <button
-                onClick={() => setIsLeftPanelOpen(true)}
-                className="absolute top-16 left-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
-                title="Open Studio Tools Panel"
-              >
-                <PanelLeftOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline">Studio Tools</span>
-              </button>
-            )}
-
-            {/* Left Studio Tool Strip & Surface Layers */}
-            {isLeftPanelOpen && (
-              <LeftStudioToolbar
-                activeTool={activeTool}
-                onSelectTool={setActiveTool}
-                activeSection={activeSubSection}
-                onSelectSection={setActiveSubSection}
-                canUndo={historyIndex > 0}
-                canRedo={historyIndex < history.length - 1}
-                onUndo={handleUndo}
-                onRedo={handleRedo}
-                onExport={() => setIsExportModalOpen(true)}
-                segments={segments}
-                selectedSegmentId={selectedSegmentId}
-                onSelectSegment={handleSelectSegment}
-                onWrapSomethingElse={() => setIsTargetModalOpen(true)}
-                onClosePanel={() => setIsLeftPanelOpen(false)}
-              />
-            )}
-
-            {/* Central Studio Canvas Viewport */}
-            <StudioCanvas
-              space={currentSpace}
-              segments={segments}
-              selectedSegmentId={selectedSegmentId}
-              onSelectSegment={handleSelectSegment}
-              selectedMaterial={selectedMaterial}
-              renderParameters={renderParameters}
-              activeTool={activeTool}
-              onApplyMaterialToSegment={handleApplyMaterialToSegment}
-              onQuickApplyMaterial={handleQuickApplyMaterial}
-              onNavigateToCatalog={() => setCurrentView('catalog')}
-              onOpenSpecsModal={handleOpenSpecsModal}
-              volkaStatus={currentSpace.volkaStatus}
-              onCvRenderComplete={(compositeDataUrl) => {
-                // CV pipeline succeeded — save composite image and material to segment
-                setSegments((prev) =>
-                  prev.map((seg) =>
-                    seg.id === selectedSegmentId || seg.name.toLowerCase() === activeTargetComponent.toLowerCase()
-                      ? { ...seg, cutoutBase64: compositeDataUrl, appliedMaterial: selectedMaterial }
-                      : seg
-                  )
-                );
-                setCurrentSpace((prev) => ({
-                  ...prev,
-                  hfSegmentedImage: compositeDataUrl,
-                  previewImage: compositeDataUrl,
-                }));
-                showToast(`CV render complete — wrapped ${activeTargetComponent || 'surface'}`);
-              }}
-            />
-
-            {/* Floating button to restore Right Panel when closed */}
-            {!isRightPanelOpen && (
-              <button
-                onClick={() => setIsRightPanelOpen(true)}
-                className="absolute top-16 right-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
-                title="Open Vinyl Library Panel"
-              >
-                <PanelRightOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline">Vinyl Styles</span>
-              </button>
-            )}
-
-            {/* Right Inspector & Materials Library Panel */}
-            {isRightPanelOpen && (
-              <RightInspectorPanel
-                selectedMaterial={selectedMaterial}
-                onSelectMaterial={handleQuickApplyMaterial}
-                renderParameters={renderParameters}
-                onChangeParameters={setRenderParameters}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <LandingPage
+                onSelectSpace={handleSelectSpace}
+                onConfirmTargetAndProceed={(space, targetName, jobId, visionResult) =>
+                  handleConfirmTargetAndProceed(space, targetName, jobId, visionResult)
+                }
+                onNavigateToStudio={() => navigate('/visualizer')}
+                onNavigateToCatalog={() => navigate('/catalog')}
                 onOpenSpecsModal={handleOpenSpecsModal}
-                onClosePanel={() => setIsRightPanelOpen(false)}
               />
-            )}
-          </div>
-        )}
-
-        {currentView === 'catalog' && (
-          <MaterialCatalog
-            activeSpace={currentSpace}
-            targetComponent={activeTargetComponent}
-            volkaStatus={currentSpace.volkaStatus}
-            onChangeTargetOrSpace={() => setCurrentView('landing')}
-            onSelectMaterialForStudio={(mat) => {
-              handleQuickApplyMaterial(mat);
-              setCurrentView('visualizer');
-            }}
-            onOpenSpecsModal={handleOpenSpecsModal}
+            }
           />
-        )}
 
-        {currentView === '404' && (
-          <NotFoundPage
-            onNavigate={(view) => {
-              setNotFoundError('');
-              setCurrentView(view);
-            }}
-            errorMessage={notFoundError || 'The requested architectural page or material resource was not found.'}
+          <Route
+            path="/visualizer"
+            element={
+              <div className="w-full h-full flex overflow-hidden relative">
+                {/* Floating button to restore Left Panel when closed */}
+                {!isLeftPanelOpen && (
+                  <button
+                    onClick={() => setIsLeftPanelOpen(true)}
+                    className="absolute top-16 left-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
+                    title="Open Studio Tools Panel"
+                  >
+                    <PanelLeftOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span className="hidden sm:inline">Studio Tools</span>
+                  </button>
+                )}
+
+                {/* Left Studio Tool Strip & Surface Layers */}
+                {isLeftPanelOpen && (
+                  <LeftStudioToolbar
+                    activeTool={activeTool}
+                    onSelectTool={setActiveTool}
+                    activeSection={activeSubSection}
+                    onSelectSection={setActiveSubSection}
+                    canUndo={historyIndex > 0}
+                    canRedo={historyIndex < history.length - 1}
+                    onUndo={handleUndo}
+                    onRedo={handleRedo}
+                    onExport={() => setIsExportModalOpen(true)}
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    onSelectSegment={handleSelectSegment}
+                    onWrapSomethingElse={() => setIsTargetModalOpen(true)}
+                    onClosePanel={() => setIsLeftPanelOpen(false)}
+                  />
+                )}
+
+                {/* Central Studio Canvas Viewport */}
+                <StudioCanvas
+                  space={currentSpace}
+                  segments={segments}
+                  selectedSegmentId={selectedSegmentId}
+                  onSelectSegment={handleSelectSegment}
+                  selectedMaterial={selectedMaterial}
+                  renderParameters={renderParameters}
+                  activeTool={activeTool}
+                  onApplyMaterialToSegment={handleApplyMaterialToSegment}
+                  onQuickApplyMaterial={handleQuickApplyMaterial}
+                  onNavigateToCatalog={() => navigate('/catalog')}
+                  onOpenSpecsModal={handleOpenSpecsModal}
+                  volkaStatus={currentSpace.volkaStatus}
+                  onCvRenderComplete={(compositeDataUrl) => {
+                    // CV pipeline succeeded — save composite image and material to segment
+                    setSegments((prev) =>
+                      prev.map((seg) =>
+                        seg.id === selectedSegmentId || seg.name.toLowerCase() === activeTargetComponent.toLowerCase()
+                          ? { ...seg, cutoutBase64: compositeDataUrl, appliedMaterial: selectedMaterial }
+                          : seg
+                      )
+                    );
+                    setCurrentSpace((prev) => ({
+                      ...prev,
+                      hfSegmentedImage: compositeDataUrl,
+                      previewImage: compositeDataUrl,
+                    }));
+                    showToast(`CV render complete — wrapped ${activeTargetComponent || 'surface'}`);
+                  }}
+                />
+
+                {/* Floating button to restore Right Panel when closed */}
+                {!isRightPanelOpen && (
+                  <button
+                    onClick={() => setIsRightPanelOpen(true)}
+                    className="absolute top-16 right-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
+                    title="Open Vinyl Library Panel"
+                  >
+                    <PanelRightOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span className="hidden sm:inline">Vinyl Styles</span>
+                  </button>
+                )}
+
+                {/* Right Inspector & Materials Library Panel */}
+                {isRightPanelOpen && (
+                  <RightInspectorPanel
+                    selectedMaterial={selectedMaterial}
+                    onSelectMaterial={handleQuickApplyMaterial}
+                    renderParameters={renderParameters}
+                    onChangeParameters={setRenderParameters}
+                    onOpenSpecsModal={handleOpenSpecsModal}
+                    onClosePanel={() => setIsRightPanelOpen(false)}
+                  />
+                )}
+              </div>
+            }
           />
-        )}
+
+          <Route
+            path="/catalog"
+            element={
+              <MaterialCatalog
+                activeSpace={currentSpace}
+                targetComponent={activeTargetComponent}
+                volkaStatus={currentSpace.volkaStatus}
+                onChangeTargetOrSpace={() => navigate('/')}
+                onSelectMaterialForStudio={(mat) => {
+                  handleQuickApplyMaterial(mat);
+                  navigate('/visualizer');
+                }}
+                onOpenSpecsModal={handleOpenSpecsModal}
+              />
+            }
+          />
+
+          {/* Alias for /catalogue spelling */}
+          <Route path="/catalogue" element={<Navigate to="/catalog" replace />} />
+
+          <Route
+            path="*"
+            element={
+              <NotFoundPage
+                onNavigate={(view) => {
+                  setNotFoundError('');
+                  handleNavigate(view);
+                }}
+                errorMessage={notFoundError || 'The requested architectural page or material resource was not found.'}
+              />
+            }
+          />
+        </Routes>
       </div>
 
       {/* 3. Floating Modals */}
@@ -539,7 +560,7 @@ function MainApp() {
         onClose={() => setIsPbrModalOpen(false)}
         onApplyInStudio={(mat) => {
           handleQuickApplyMaterial(mat);
-          setCurrentView('visualizer');
+          navigate('/visualizer');
         }}
       />
 
@@ -573,3 +594,4 @@ function MainApp() {
     </div>
   );
 }
+

@@ -351,10 +351,18 @@ export interface VinylRenderResponse {
 export async function renderVinylWrap(
   payload: VinylRenderRequest
 ): Promise<VinylRenderResponse> {
+  const baseImageData = await ensureBase64DataUrl(payload.baseImageData);
+  const maskImageData = await ensureBase64DataUrl(payload.maskImageData);
+  const fullPayload = {
+    ...payload,
+    baseImageData,
+    maskImageData,
+  };
+
   const res = await fetch(`${API_BASE}/vinyl-render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(fullPayload),
   });
 
   if (!res.ok) {

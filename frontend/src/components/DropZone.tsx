@@ -135,8 +135,11 @@ export const DropZone: React.FC<DropZoneProps> = ({
     }
   };
 
-  const handlePresetSelect = (type: 'kitchen' | 'bathroom' | 'office') => {
-    const matched = PRESET_SPACES.find((s) => s.type === type) || PRESET_SPACES[0];
+  const handlePresetSelect = (type: 'kitchen' | 'wardrobe' | 'washroom' | 'bathroom' | 'office') => {
+    const matched = PRESET_SPACES.find((s) => s.type === type)
+      || (type === 'washroom' || type === 'bathroom' ? PRESET_SPACES.find((s) => s.type === 'washroom' || s.type === 'bathroom') : undefined)
+      || (type === 'wardrobe' || type === 'office' ? PRESET_SPACES.find((s) => s.type === 'wardrobe' || s.type === 'office') : undefined)
+      || PRESET_SPACES[0];
     onSelectSpace(matched);
     if (onOpenTargetModal) {
       onOpenTargetModal(matched);
@@ -240,24 +243,24 @@ export const DropZone: React.FC<DropZoneProps> = ({
 
               <button
                 type="button"
-                onClick={() => handlePresetSelect('bathroom')}
+                onClick={() => handlePresetSelect('wardrobe')}
+                className="px-3.5 py-1.5 bg-[#182028] hover:bg-[#222b33] border border-[#3e484f]/60 hover:border-[#38bdf8]/50 rounded-lg text-xs font-medium text-[#dae3ee] hover:text-[#38bdf8] transition-all flex items-center gap-1.5 shadow-sm group/btn"
+              >
+                <span className="material-symbols-outlined text-[16px] text-[#38bdf8]">
+                  styler
+                </span>
+                <span>Wardrobe</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePresetSelect('washroom')}
                 className="px-3.5 py-1.5 bg-[#182028] hover:bg-[#222b33] border border-[#3e484f]/60 hover:border-[#38bdf8]/50 rounded-lg text-xs font-medium text-[#dae3ee] hover:text-[#38bdf8] transition-all flex items-center gap-1.5 shadow-sm group/btn"
               >
                 <span className="material-symbols-outlined text-[16px] text-[#38bdf8]">
                   bathtub
                 </span>
-                <span>Bathroom</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handlePresetSelect('office')}
-                className="px-3.5 py-1.5 bg-[#182028] hover:bg-[#222b33] border border-[#3e484f]/60 hover:border-[#38bdf8]/50 rounded-lg text-xs font-medium text-[#dae3ee] hover:text-[#38bdf8] transition-all flex items-center gap-1.5 shadow-sm group/btn"
-              >
-                <span className="material-symbols-outlined text-[16px] text-[#38bdf8]">
-                  desk
-                </span>
-                <span>Office</span>
+                <span>Washroom</span>
               </button>
             </div>
           </>
