@@ -117,9 +117,26 @@ function MainApp() {
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Panel visibility (collapsible panels)
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  // Panel visibility (collapsible sidebars on desktop; closed by default on mobile)
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : false
+  );
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : false
+  );
+
+  // Automatically close side panels on mobile view (< 1024px) when entering visualizer or resizing
+  useEffect(() => {
+    const handleScreenCheck = () => {
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        setIsLeftPanelOpen(false);
+        setIsRightPanelOpen(false);
+      }
+    };
+    handleScreenCheck();
+    window.addEventListener('resize', handleScreenCheck);
+    return () => window.removeEventListener('resize', handleScreenCheck);
+  }, [location.pathname]);
 
   // Polling ref for active Volka HF job & retry count
   const volkaPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -360,6 +377,11 @@ function MainApp() {
     if (selectedSegmentId) {
       handleApplyMaterialToSegment(selectedSegmentId, material);
     }
+
+    // Auto-close right panel on mobile view (< 1024px) after selecting a vinyl style
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsRightPanelOpen(false);
+    }
   };
 
   // Open PBR Specs Inspector Modal
@@ -426,15 +448,15 @@ function MainApp() {
             path="/visualizer"
             element={
               <div className="w-full h-full flex overflow-hidden relative">
-                {/* Floating button to restore Left Panel when closed */}
+                {/* Floating button to restore Left Panel when closed (Desktop only) */}
                 {!isLeftPanelOpen && (
                   <button
                     onClick={() => setIsLeftPanelOpen(true)}
-                    className="absolute top-16 left-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
+                    className="hidden lg:flex absolute top-16 left-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
                     title="Open Studio Tools Panel"
                   >
                     <PanelLeftOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    <span className="hidden sm:inline">Studio Tools</span>
+                    <span>Studio Tools</span>
                   </button>
                 )}
 
@@ -490,15 +512,15 @@ function MainApp() {
                   }}
                 />
 
-                {/* Floating button to restore Right Panel when closed */}
+                {/* Floating button to restore Right Panel when closed (Desktop only) */}
                 {!isRightPanelOpen && (
                   <button
                     onClick={() => setIsRightPanelOpen(true)}
-                    className="absolute top-16 right-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
+                    className="hidden lg:flex absolute top-16 right-4 z-40 bg-[#0b141c]/90 hover:bg-[#182028] text-[#38bdf8] border border-[#38bdf8]/50 p-2.5 rounded-xl shadow-xl backdrop-blur-md items-center gap-2 text-xs font-semibold hover:border-[#38bdf8] transition-all group"
                     title="Open Vinyl Library Panel"
                   >
                     <PanelRightOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    <span className="hidden sm:inline">Vinyl Styles</span>
+                    <span>Vinyl Styles</span>
                   </button>
                 )}
 
@@ -513,6 +535,54 @@ function MainApp() {
                     onClosePanel={() => setIsRightPanelOpen(false)}
                   />
                 )}
+
+                {/* Mobile Floating Bottom Navigation Bar for Visualizer (< lg) */}
+                <div className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#141c24]/95 backdrop-blur-xl border border-[#38bdf8]/40 rounded-2xl p-1.5 shadow-2xl shadow-black/80 flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setIsLeftPanelOpen(!isLeftPanelOpen);
+                      if (isRightPanelOpen) setIsRightPanelOpen(false);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      isLeftPanelOpen
+                        ? 'bg-[#38bdf8] text-[#00354a] font-bold shadow-md'
+                        : 'text-[#bdc8d1] hover:text-white hover:bg-[#222b33]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">build</span>
+                    <span>Tools ({segments.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsLeftPanelOpen(false);
+                      setIsRightPanelOpen(false);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      !isLeftPanelOpen && !isRightPanelOpen
+                        ? 'bg-[#38bdf8] text-[#00354a] font-bold shadow-md'
+                        : 'text-[#bdc8d1] hover:text-white hover:bg-[#222b33]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">view_in_ar</span>
+                    <span>Canvas</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsRightPanelOpen(!isRightPanelOpen);
+                      if (isLeftPanelOpen) setIsLeftPanelOpen(false);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      isRightPanelOpen
+                        ? 'bg-[#38bdf8] text-[#00354a] font-bold shadow-md'
+                        : 'text-[#bdc8d1] hover:text-white hover:bg-[#222b33]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">palette</span>
+                    <span>Vinyl Library</span>
+                  </button>
+                </div>
               </div>
             }
           />

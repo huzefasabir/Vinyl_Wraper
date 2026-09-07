@@ -36,10 +36,17 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
   onClosePanel,
 }) => {
   return (
-    <aside
-      onWheel={(e) => e.stopPropagation()}
-      className="w-64 lg:w-72 bg-[#0b141c] border-r border-[#3e484f]/40 flex h-full overflow-hidden select-none"
-    >
+    <>
+      {/* Mobile Drawer Backdrop overlay (< lg) */}
+      <div
+        onClick={onClosePanel}
+        className="lg:hidden fixed inset-0 z-40 bg-[#0b141c]/80 backdrop-blur-sm animate-in fade-in duration-200"
+      />
+
+      <aside
+        onWheel={(e) => e.stopPropagation()}
+        className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] lg:static lg:z-auto lg:w-72 lg:max-w-none bg-[#0b141c] border-r border-[#3e484f]/40 flex h-full overflow-hidden select-none shadow-2xl lg:shadow-none animate-in slide-in-from-left-4 lg:animate-none duration-200"
+      >
       {/* 1. Main Drawer Area */}
       <div className="flex-1 flex flex-col justify-between p-4 border-r border-[#3e484f]/20 overflow-hidden">
         {/* Header & Controls Top Section */}
@@ -145,6 +152,7 @@ export const LeftStudioToolbar: React.FC<LeftStudioToolbarProps> = ({
         </div>
       </div>
     </aside>
+  </>
   );
 };
 

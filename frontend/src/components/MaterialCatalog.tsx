@@ -126,9 +126,9 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-[#0b141c] text-[#dae3ee] pt-18 pb-20 px-4 sm:px-8 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto min-h-screen bg-[#0b141c] text-[#dae3ee] pt-18 pb-20 px-4 sm:px-8 overflow-x-hidden">
       {/* 4-Step Flow Progress Bar */}
-      <div className="mb-6 p-3 sm:p-4 rounded-2xl bg-[#141c24] border border-[#3e484f]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="mb-6 p-3 sm:p-4 rounded-2xl bg-[#141c24] border border-[#3e484f]/50 flex overflow-x-auto scrollbar-none sm:flex-wrap items-center justify-between gap-3 text-xs whitespace-nowrap">
         <div className="flex items-center gap-2 text-emerald-400">
           <Check className="w-4 h-4" />
           <span className="font-semibold">1. Image Upload</span>
@@ -239,7 +239,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search SKU (e.g. OGW01), name, grain..."
-              className="w-full bg-[#182028] border border-[#3e484f]/60 rounded-xl pl-10 pr-4 py-2 text-xs text-[#dae3ee] placeholder:text-[#87929a]/60 focus:outline-none focus:border-[#38bdf8] shadow-inner transition-colors"
+              className="w-full bg-[#182028] border border-[#3e484f]/60 rounded-xl pl-10 pr-4 py-2 text-base sm:text-xs text-[#dae3ee] placeholder:text-[#87929a]/60 focus:outline-none focus:border-[#38bdf8] shadow-inner transition-colors"
             />
             {searchQuery && (
               <button
@@ -251,7 +251,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-shrink-0">
             <button
               onClick={() => setFilterNewOnly(!filterNewOnly)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${filterNewOnly

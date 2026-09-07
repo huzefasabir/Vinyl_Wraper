@@ -108,7 +108,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         {/* Hero Title */}
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#dae3ee] tracking-tight max-w-4xl mx-auto leading-[1.15] mb-6">
+        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-[#dae3ee] tracking-tight max-w-4xl mx-auto leading-[1.15] mb-6">
           Transform Interior Surfaces with{' '}
           <span className="bg-gradient-to-r from-[#38bdf8] via-[#8ed5ff] to-[#bdc2ff] bg-clip-text text-transparent">
             Real-Time AI
@@ -228,7 +228,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Interactive Visual Stage Canvas */}
-          <div className="relative w-full aspect-[16/8] sm:aspect-[21/9] rounded-xl overflow-hidden bg-[#0b141c] border border-[#3e484f]/40">
+          <div className="relative w-full aspect-[4/3] sm:aspect-[21/9] rounded-xl overflow-hidden bg-[#0b141c] border border-[#3e484f]/40">
             {/* Base Image */}
             <img
               src={PRESET_SPACES[0].imageUrl}

@@ -95,7 +95,7 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0b141c]/85 backdrop-blur-md animate-in fade-in duration-200">
       <div
-        className="bg-[#141c24] border border-[#3e484f]/60 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl shadow-black/80 flex flex-col" onClick={(e) => e.stopPropagation()}
+        className="bg-[#141c24] border border-[#3e484f]/60 rounded-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto shadow-2xl shadow-black/80 flex flex-col" onClick={(e) => e.stopPropagation()}
       >
         {/* Step Indicator Header */}
         <div className="bg-[#0e161e] px-6 py-2.5 border-b border-[#3e484f]/40 flex items-center justify-between text-[11px] font-mono">

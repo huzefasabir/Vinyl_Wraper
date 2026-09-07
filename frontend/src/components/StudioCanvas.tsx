@@ -450,34 +450,34 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   return (
     <main className="flex-1 flex flex-col h-full bg-[#060f16] relative overflow-hidden select-none">
       {/* 1. Canvas Top Utility Bar */}
-      <div className="h-12 bg-[#0b141c]/90 backdrop-blur-md border-b border-[#3e484f]/30 px-4 flex items-center justify-between z-20">
+      <div className="h-12 bg-[#0b141c]/90 backdrop-blur-md border-b border-[#3e484f]/30 px-3 sm:px-4 flex items-center justify-between z-20 overflow-x-auto scrollbar-none gap-2">
         {/* Left: Space Title & View Mode Selector */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[#dae3ee]">{space.title}</span>
-            <span className="text-[10px] font-mono text-[#87929a] bg-[#182028] px-2 py-0.5 rounded border border-[#3e484f]/40">
-              {segments.length} Zones Detected
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="text-xs font-semibold text-[#dae3ee] whitespace-nowrap">{space.title}</span>
+            <span className="text-[10px] font-mono text-[#87929a] bg-[#182028] px-1.5 py-0.5 rounded border border-[#3e484f]/40 whitespace-nowrap">
+              {segments.length} Zones
             </span>
           </div>
 
-          <div className="h-4 w-px bg-[#3e484f]/40 mx-1 hidden sm:block" />
+          <div className="h-4 w-px bg-[#3e484f]/40 mx-0.5 hidden xs:block" />
 
           {/* Mode Switch: Original Room vs Wrapped Room */}
-          <div className="hidden sm:flex items-center bg-[#182028] p-0.5 rounded-lg border border-[#3e484f]/40 text-xs">
+          <div className="flex items-center bg-[#182028] p-0.5 rounded-lg border border-[#3e484f]/40 text-[11px] sm:text-xs">
             <button
               onClick={() => setDisplayMode('original')}
-              className={`px-2.5 py-1 rounded-md transition-all ${
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md transition-all whitespace-nowrap ${
                 displayMode === 'original'
                   ? 'bg-[#38bdf8] text-[#00354a] font-semibold'
                   : 'text-[#bdc8d1] hover:text-[#dae3ee]'
               }`}
               title="Show original room image"
             >
-              Original Room
+              Original
             </button>
             <button
               onClick={() => setDisplayMode('wrapped')}
-              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md transition-all flex items-center gap-1 whitespace-nowrap ${
                 displayMode === 'wrapped'
                   ? 'bg-[#38bdf8] text-[#00354a] font-semibold'
                   : 'text-[#bdc8d1] hover:text-[#dae3ee]'
@@ -485,43 +485,43 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
               title="Show wrapped room visualizer"
             >
               <Sparkles className="w-3 h-3" />
-              <span>Wrapped Room</span>
+              <span>Wrapped</span>
               {isPending && displayMode !== 'wrapped' && (
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" title="Processing..." />
               )}
             </button>
           </div>
 
-          <div className="h-4 w-px bg-[#3e484f]/40 mx-1 hidden sm:block" />
+          <div className="h-4 w-px bg-[#3e484f]/40 mx-0.5 hidden xs:block" />
 
           {/* Compare Mode Switch */}
-          <div className="hidden sm:flex items-center bg-[#182028] p-0.5 rounded-lg border border-[#3e484f]/40 text-xs">
+          <div className="flex items-center bg-[#182028] p-0.5 rounded-lg border border-[#3e484f]/40 text-[11px] sm:text-xs">
             <button
               onClick={() => setCompareMode('single')}
-              className={`px-2.5 py-1 rounded-md transition-all ${
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md transition-all whitespace-nowrap ${
                 compareMode === 'single'
                   ? 'bg-[#38bdf8] text-[#00354a] font-semibold'
                   : 'text-[#bdc8d1] hover:text-[#dae3ee]'
               }`}
             >
-              Full Render
+              Full
             </button>
             <button
               onClick={() => setCompareMode('split')}
-              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md transition-all flex items-center gap-1 whitespace-nowrap ${
                 compareMode === 'split'
                   ? 'bg-[#38bdf8] text-[#00354a] font-semibold'
                   : 'text-[#bdc8d1] hover:text-[#dae3ee]'
               }`}
             >
               <ArrowRightLeft className="w-3 h-3" />
-              <span>Split Comparison</span>
+              <span>Split</span>
             </button>
           </div>
         </div>
 
         {/* Right: Viewport Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
 
           {/* Overlay Toggle */}
           <button
@@ -534,7 +534,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
             title="Toggle Segment Selection Outlines"
           >
             <Eye className="w-3.5 h-3.5" />
-            <span className="hidden md:inline text-[11px]">Outlines</span>
+            <span className="hidden sm:inline text-[11px]">Outlines</span>
           </button>
 
           {/* Zoom controls */}
@@ -546,7 +546,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[10px] font-mono text-[#dae3ee] px-2">
+            <span className="text-[10px] font-mono text-[#dae3ee] px-1.5">
               {Math.round(zoom * 100)}%
             </span>
             <button
@@ -596,7 +596,27 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           setIsDraggingSplit(false);
           handleCanvasMouseUp();
         }}
-        className="flex-1 relative flex items-center justify-center p-4 sm:p-6 overflow-hidden select-none"
+        onTouchStart={(e) => {
+          if (compareMode === 'split' && e.touches.length > 0) {
+            setIsDraggingSplit(true);
+            if (viewportRef.current) {
+              const rect = viewportRef.current.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
+              setSplitPos(pct);
+            }
+          }
+        }}
+        onTouchMove={(e) => {
+          if (compareMode === 'split' && isDraggingSplit && viewportRef.current && e.touches.length > 0) {
+            const rect = viewportRef.current.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
+            setSplitPos(pct);
+          }
+        }}
+        onTouchEnd={() => {
+          setIsDraggingSplit(false);
+        }}
+        className="flex-1 relative flex items-center justify-center p-3 sm:p-6 overflow-hidden select-none"
       >
         <div
           className="relative max-w-5xl w-full aspect-video rounded-2xl overflow-hidden shadow-2xl border border-[#3e484f]/60 bg-[#0b141c] flex items-center justify-center group"
@@ -749,7 +769,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       </div>
 
       {/* 3. Bottom Horizontal Drawer: "RELATED STYLES" (Matching Screenshot) */}
-      <div className="h-44 bg-[#0b141c] border-t border-[#3e484f]/40 p-3 sm:px-6 flex flex-col justify-between z-20 select-none">
+      <div className="min-h-[220px] lg:h-44 bg-[#0b141c] border-t border-[#3e484f]/40 p-3 sm:px-6 flex flex-col justify-between z-20 select-none">
         {/* Drawer Header */}
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
@@ -773,7 +793,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         </div>
 
         {/* Carousel Row (Matching Screenshot Cards with "Apply" button) */}
-        <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex items-center gap-3 overflow-x-auto pb-2 mb-16 lg:mb-0 scrollbar-none">
           {relatedStyles.length === 0 ? (
             <div className="w-full py-4 text-center text-xs text-[#87929a] font-medium">
               Vinyl style not found. This style is currently unavailable. Please try again with another style.

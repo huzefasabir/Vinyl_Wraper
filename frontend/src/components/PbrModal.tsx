@@ -43,7 +43,7 @@ export const PbrModal: React.FC<PbrModalProps> = ({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-5xl bg-[#182028] shadow-2xl rounded-2xl border border-[#3e484f]/60 overflow-hidden flex flex-col md:flex-row h-full max-h-[860px] animate-in fade-in zoom-in-95 duration-200 z-10">
+      <div className="relative w-full max-w-5xl bg-[#182028] shadow-2xl rounded-2xl border border-[#3e484f]/60 overflow-hidden flex flex-col md:flex-row max-h-[92vh] md:max-h-[860px] overflow-y-auto md:overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-10">
         {/* Left: Large Macro PBR Texture Viewer */}
         <div className="w-full md:w-[58%] h-72 md:h-full bg-[#0b141c] relative overflow-hidden flex-shrink-0 group">
           {/* High-res texture with dynamic simulated light gloss */}

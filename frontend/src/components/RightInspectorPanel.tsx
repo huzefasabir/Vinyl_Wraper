@@ -51,10 +51,17 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     : null;
 
   return (
-    <aside
-      onWheel={(e) => e.stopPropagation()}
-      className="w-80 lg:w-96 bg-[#0b141c] border-l border-[#3e484f]/40 flex flex-col h-full overflow-hidden select-none"
-    >
+    <>
+      {/* Mobile Drawer Backdrop overlay (< lg) */}
+      <div
+        onClick={onClosePanel}
+        className="lg:hidden fixed inset-0 z-40 bg-[#0b141c]/80 backdrop-blur-sm animate-in fade-in duration-200"
+      />
+
+      <aside
+        onWheel={(e) => e.stopPropagation()}
+        className="fixed inset-y-0 right-0 z-50 w-80 max-w-[85vw] lg:static lg:z-auto lg:w-80 lg:w-96 lg:max-w-none bg-[#0b141c] border-l border-[#3e484f]/40 flex flex-col h-full overflow-hidden select-none shadow-2xl lg:shadow-none animate-in slide-in-from-right-4 lg:animate-none duration-200"
+      >
       {/* 1. TOP SECTION: Details of the Selected Vinyl Style & Render Parameters */}
       <div className="p-4 border-b border-[#3e484f]/40 bg-[#141c24] space-y-3.5 flex-shrink-0">
         {/* Selected Material Header */}
@@ -446,5 +453,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
         )}
       </div>
     </aside>
+  </>
   );
 };
