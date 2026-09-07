@@ -14,7 +14,7 @@ const TARGET_BACKEND = (
   process.env.PYTHON_BACKEND_URL ||
   process.env.VITE_API_TARGET ||
   process.env.BACKEND_URL ||
-  'https://vinyl-wraper-1.onrender.com'
+  'https://vinyl-wraper-ai.onrender.com'
 ).replace(/\/$/, '');
 
 function getBackendOptions(endpointPath: string, method: string = 'GET', extraHeaders: Record<string, string | number> = {}) {

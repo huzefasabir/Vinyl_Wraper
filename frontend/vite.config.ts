@@ -23,7 +23,7 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
         '/api': {
-          target: process.env.VITE_API_TARGET || 'https://vinyl-wraper-1.onrender.com',
+          target: process.env.VITE_API_TARGET || 'https://vinyl-wraper-ai.onrender.com',
           changeOrigin: true,
         },
       },

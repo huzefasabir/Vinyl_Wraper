@@ -1,6 +1,6 @@
 import { CategorySummary, Material, Project, SpaceSegment } from '../types';
 
-export const RENDER_BACKEND_URL = 'https://vinyl-wraper-1.onrender.com';
+export const RENDER_BACKEND_URL = 'https://vinyl-wraper-ai.onrender.com';
 
 // By default, relative '/api' proxies through Node/Vite server to backend to avoid browser CORS issues.
 const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
@@ -233,7 +233,11 @@ async function ensureBase64DataUrl(urlOrBase64: string): Promise<string> {
   if (!urlOrBase64) return '';
   if (urlOrBase64.startsWith('data:')) return urlOrBase64;
   try {
-    const res = await fetch(urlOrBase64);
+    let targetUrl = urlOrBase64;
+    if (targetUrl.startsWith('/api/')) {
+      targetUrl = `${API_BASE}${targetUrl.slice(4)}`;
+    }
+    const res = await fetch(targetUrl);
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
