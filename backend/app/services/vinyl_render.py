@@ -88,5 +88,5 @@ if __name__ == "__main__":
     mask = cv2.imread("sam_door_mask.png")
     vinyl_swatch = cv2.imread("RM009.jpg")
 
-    result = apply_vinyl_wrap_opaque(original, mask, vinyl_swatch)
+    result = apply_vinyl_wrap(original, mask, vinyl_swatch)
     cv2.imwrite("clean_vinyl_rendered.jpg", result)

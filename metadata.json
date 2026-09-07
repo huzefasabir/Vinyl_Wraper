@@ -1,0 +1,6 @@
+{
+  "name": "VinylWrap AI Studio",
+  "description": "Architectural surface material visualizer SaaS platform with real-time AI wrapping, PBR material specs, and interactive studio workspace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,43 +1,23 @@
-# Python
-__pycache__/
-*.py[oc]
-*.pyo
+node_modules/
 build/
 dist/
-wheels/
-*.egg-info/
-.eggs/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Environment / secrets — NEVER commit these
-.env
-.env.*
+coverage/
+.DS_Store
+*.log
+.env*
 !.env.example
 
-# Storage — large binary assets & generated output
-storage_data/
-backend/storage_data/
-output/
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
 
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# IDE
-.vscode/
-.idea/
-*.suo
-*.user
-
-# Logs
-*.log
-logs/
-
-# uv / pip
-uv.lock
-pip-wheel-metadata/
+# Storage & Media Outputs
+storage_data/masks/
+storage_data/images/custom/
+storage_data/renders/
+*.webp
+*.tmp
