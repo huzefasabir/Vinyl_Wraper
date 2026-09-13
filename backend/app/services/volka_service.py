@@ -50,37 +50,49 @@ def _reset_client():
     _client = None
 
 
-def _run_predict(image_path: str, prompt: str, show_masks: bool, show_boxes: bool, crop_option: str) -> Tuple[str, str]:
-    try:
-        client = _get_client()
-        log.hf(f"Calling /detect_objects  prompt='{prompt}'  masks={show_masks}  boxes={show_boxes}  crop='{crop_option}'")
-        result = client.predict(
-            image_path=handle_file(image_path),
-            prompt=prompt,
-            show_masks=show_masks,
-            show_boxes=show_boxes,
-            crop_option=crop_option,
-            api_name="/detect_objects",
-        )
+import time
 
-        description = ""
-        result_path = ""
-        if isinstance(result, (tuple, list)):
-            result_path = str(result[0]) if len(result) > 0 else ""
-            description = str(result[1]) if len(result) > 1 else ""
-        elif isinstance(result, dict):
-            result_path = str(result.get("image", result.get("name", "")))
-            description = str(result.get("description", ""))
-        else:
-            result_path = str(result)
+def _run_predict(image_path: str, prompt: str, show_masks: bool, show_boxes: bool, crop_option: str, max_retries: int = 1, delay_seconds: float = 2.0) -> Tuple[str, str]:
+    last_exception = None
+    for attempt in range(1 + max_retries):
+        try:
+            client = _get_client()
+            attempt_str = f" (Attempt {attempt + 1}/{1 + max_retries})" if max_retries > 0 else ""
+            log.hf(f"Calling /detect_objects{attempt_str}  prompt='{prompt}'  masks={show_masks}  boxes={show_boxes}  crop='{crop_option}'")
+            result = client.predict(
+                image_path=handle_file(image_path),
+                prompt=prompt,
+                show_masks=show_masks,
+                show_boxes=show_boxes,
+                crop_option=crop_option,
+                api_name="/detect_objects",
+            )
 
-        safe_desc = description.encode("ascii", "ignore").decode("ascii") if description else ""
-        log.ok(f"/detect_objects returned  result_path='{result_path}'  description='{safe_desc[:80]}'")
-        return result_path, description
-    except Exception as exc:
-        log.error(f"_run_predict failed: {exc} - resetting Gradio client connection")
-        _reset_client()
-        raise
+            description = ""
+            result_path = ""
+            if isinstance(result, (tuple, list)):
+                result_path = str(result[0]) if len(result) > 0 else ""
+                description = str(result[1]) if len(result) > 1 else ""
+            elif isinstance(result, dict):
+                result_path = str(result.get("image", result.get("name", "")))
+                description = str(result.get("description", ""))
+            else:
+                result_path = str(result)
+
+            safe_desc = description.encode("ascii", "ignore").decode("ascii") if description else ""
+            log.ok(f"/detect_objects returned  result_path='{result_path}'  description='{safe_desc[:80]}'")
+            return result_path, description
+        except Exception as exc:
+            last_exception = exc
+            log.error(f"_run_predict failed (Attempt {attempt + 1}/{1 + max_retries}): {exc} - resetting Gradio client connection")
+            _reset_client()
+            if attempt < max_retries:
+                log.info(f"HF Space model failed. Waiting {delay_seconds} seconds before retrying...")
+                time.sleep(delay_seconds)
+
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("Prediction failed without exception")
 
 
 async def analyze_image(
