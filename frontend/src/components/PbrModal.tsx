@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Material } from '../types';
 import { Sparkles, Sun, RotateCw, Layers, X, ArrowRight } from 'lucide-react';
+import { resolveImageUrl } from '../services/api';
 
 interface PbrModalProps {
   material: Material | null;
@@ -50,7 +51,7 @@ export const PbrModal: React.FC<PbrModalProps> = ({
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-700"
             style={{
-              backgroundImage: `url(${material.macroUrl || material.imageUrl})`,
+              backgroundImage: `url(${resolveImageUrl(material.macroUrl || material.imageUrl)})`,
               transform: isRotating ? 'scale(1.1) rotate(5deg)' : 'scale(1)'
             }}
           />

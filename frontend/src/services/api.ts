@@ -2,8 +2,46 @@ import { CategorySummary, Material, Project, SpaceSegment } from '../types';
 
 export const RENDER_BACKEND_URL = 'https://vinyl-wraper-ai.onrender.com';
 
-// By default, relative '/api' proxies through Node/Vite server to backend to avoid browser CORS issues.
-const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+// Detect if running inside Capacitor mobile native environment where relative /api endpoints won't resolve
+const isNativeApp =
+  typeof window !== 'undefined' &&
+  (window.location.protocol === 'capacitor:' ||
+   window.location.protocol === 'file:' ||
+   Boolean((window as any).Capacitor?.isNativePlatform?.()));
+
+// By default, relative '/api' proxies through Node/Vite server, but mobile native app calls live backend directly.
+const configuredApiBase = (import.meta as any).env?.VITE_API_BASE_URL || (isNativeApp ? `${RENDER_BACKEND_URL}/api` : '/api');
+const API_BASE = configuredApiBase.replace(/\/$/, '');
+
+/**
+ * Resolves relative image URLs (e.g. /api/images/wood/...) to absolute URLs,
+ * ensuring images load properly in native Capacitor/Android apps and Web environments.
+ */
+export function resolveImageUrl(url?: string): string {
+  if (!url) return '';
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('data:') ||
+    url.startsWith('blob:')
+  ) {
+    return url;
+  }
+
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+
+  if (cleanUrl.startsWith('/api')) {
+    const base = API_BASE.startsWith('http')
+      ? API_BASE
+      : (isNativeApp ? `${RENDER_BACKEND_URL}/api` : '/api');
+    return `${base}${cleanUrl.slice(4)}`;
+  }
+
+  const rootBase = API_BASE.startsWith('http')
+    ? API_BASE.replace(/\/api$/, '')
+    : (isNativeApp ? RENDER_BACKEND_URL : '');
+  return `${rootBase}${cleanUrl}`;
+}
 
 
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, ChevronDown, ChevronUp, ChevronRight, Sparkles, Check, Info, X } from 'lucide-react';
 import { Material, RenderParameters } from '../types';
 import { MATERIALS, CATEGORIES } from '../data/materialsData';
+import { resolveImageUrl } from '../services/api';
 
 interface RightInspectorPanelProps {
   selectedMaterial: Material;
@@ -104,7 +105,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div
                 className="w-7 h-7 rounded bg-cover bg-center border border-[#3e484f]/40 flex-shrink-0"
-                style={{ backgroundImage: `url(${selectedMaterial.imageUrl})` }}
+                style={{ backgroundImage: `url(${resolveImageUrl(selectedMaterial.imageUrl)})` }}
               />
               <span className="text-xs font-bold text-[#38bdf8] uppercase font-mono truncate">
                 {selectedMaterial.code || selectedMaterial.sku}
@@ -124,7 +125,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               <div className="flex items-center gap-3 overflow-hidden">
                 <div
                   className="w-13 h-13 rounded-lg bg-cover bg-center border border-[#3e484f]/40 flex-shrink-0 group-hover:scale-105 transition-transform bg-[#0b141c]"
-                  style={{ backgroundImage: `url(${selectedMaterial.imageUrl})` }}
+                  style={{ backgroundImage: `url(${resolveImageUrl(selectedMaterial.imageUrl)})` }}
                 />
                 <div className="flex flex-col truncate">
                   <span className="text-[11px] font-mono font-bold text-[#38bdf8] uppercase">
@@ -331,7 +332,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   >
                     <div
                       className="w-full h-20 rounded mb-1.5 bg-cover bg-center bg-[#0b141c]"
-                      style={{ backgroundImage: `url(${mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`})` }}
+                      style={{ backgroundImage: `url(${resolveImageUrl(mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`)})` }}
                     />
                     <div className="flex justify-between items-center text-[10px] font-mono text-[#38bdf8]">
                       <span>{mat.code || mat.sku}</span>
@@ -431,7 +432,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                             >
                               <div
                                 className="w-full h-18 rounded mb-1.5 bg-cover bg-center bg-[#0b141c]"
-                                style={{ backgroundImage: `url(${mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`})` }}
+                                style={{ backgroundImage: `url(${resolveImageUrl(mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`)})` }}
                               />
                               <div className="flex justify-between items-center text-[10px] font-mono font-semibold text-[#38bdf8]">
                                 <span>{mat.code || mat.sku}</span>

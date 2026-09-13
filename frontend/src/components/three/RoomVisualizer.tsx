@@ -33,6 +33,7 @@ import { Sparkles as SparklesIcon, Layers, Loader2 } from 'lucide-react';
 import { SpaceSegment, Material, VolkaJobStatus } from '../../types';
 import { MasterVinylMaterial } from './MasterVinylMaterial';
 import { MaskMesh } from './MaskMesh';
+import { resolveImageUrl } from '../../services/api';
 
 interface RoomVisualizerProps {
   imageUrl: string;
@@ -63,10 +64,11 @@ export function RoomVisualizer({
 
   // ── Background image source ──────────────────────────────────────────────
   // Prefer HF segmented/annotated image in wrapped mode, original in original mode
-  const bgSrc =
+  const bgSrc = resolveImageUrl(
     displayMode === 'wrapped' && hfSegmentedImage
       ? hfSegmentedImage
-      : imageUrl;
+      : imageUrl
+  );
 
   // ── Image aspect ratio (for UV correction in MaskMesh) ──────────────────
   const imgRef = useRef<HTMLImageElement>(null);

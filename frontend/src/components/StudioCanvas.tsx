@@ -17,7 +17,7 @@ import {
 import { SpaceImage, SpaceSegment, Material, RenderParameters, StudioTool, VolkaJobStatus } from '../types';
 import { MATERIALS } from '../data/materialsData';
 import { RoomVisualizer } from './three/RoomVisualizer';
-import { renderVinylWrap } from '../services/api';
+import { renderVinylWrap, resolveImageUrl } from '../services/api';
 import { log } from '../services/logger';
 
 interface StudioCanvasProps {
@@ -676,7 +676,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
                 style={{ clipPath: `polygon(0 0, ${splitPos}% 0, ${splitPos}% 100%, 0 100%)` }}
               >
                 <img
-                  src={space.imageUrl}
+                  src={resolveImageUrl(space.imageUrl)}
                   alt="Original room photo"
                   className="w-full h-full object-contain"
                 />
@@ -836,7 +836,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
               {/* Texture thumbnail */}
               <div
                 className="w-full h-16 rounded-lg bg-cover bg-center mb-1.5 relative overflow-hidden"
-                style={{ backgroundImage: `url(${item.imageUrl})` }}
+                style={{ backgroundImage: `url(${resolveImageUrl(item.imageUrl)})` }}
               >
                 <button
                   onClick={() => onOpenSpecsModal(item)}

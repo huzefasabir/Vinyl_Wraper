@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sparkles, ArrowRightLeft } from 'lucide-react';
+import { resolveImageUrl } from '../services/api';
 
 interface BeforeAfterSliderProps {
   beforeImage: string;
@@ -78,7 +79,7 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
     >
       {/* Before Image (Base layer) */}
       <img
-        src={beforeImage}
+        src={resolveImageUrl(beforeImage)}
         alt="Original Space Before Wrap"
         className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
       />
@@ -89,7 +90,7 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
         style={{ width: `${sliderPos}%` }}
       >
         <img
-          src={afterImage}
+          src={resolveImageUrl(afterImage)}
           alt="AI Wrapped Space After"
           className="absolute inset-0 h-full object-cover select-none pointer-events-none"
           style={{

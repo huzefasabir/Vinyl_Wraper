@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Heart, Sparkles, Eye, ArrowRight, Edit3, Flame, Check, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Material, SpaceImage, CategorySummary, VolkaJobStatus } from '../types';
 import { MATERIALS as DEFAULT_MATERIALS, CATEGORIES as DEFAULT_CATEGORIES, SUB_CATEGORIES as DEFAULT_SUB_CATEGORIES } from '../data/materialsData';
-import { fetchCategories, fetchMaterials } from '../services/api';
+import { fetchCategories, fetchMaterials, resolveImageUrl } from '../services/api';
+import { CatalogImage } from './CatalogImage';
 
 interface MaterialCatalogProps {
   activeSpace?: SpaceImage;
@@ -186,7 +187,7 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
         <div className="flex items-center gap-3.5">
           <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-[#0b141c] shrink-0 border border-[#3e484f] shadow-inner">
             <img
-              src={activeSpace?.previewImage || activeSpace?.thumbnailUrl || activeSpace?.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA'}
+              src={resolveImageUrl(activeSpace?.previewImage || activeSpace?.thumbnailUrl || activeSpace?.imageUrl) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAeY9Vj8PDpu-0VphwfKJ8bfKDstbwmN8dT0QukCeUoROts61UpKYAy3r98thmuwyyff6jvqBf6lK48DxI7A7G7_CpsB_Wg8OzGyiUOm7dtIofuYZH-ffn0aG4z_2NrjNDaW824DFzdmKRyLQGzhz6cJs0EHaVDzoDTUHh-4omm7zQZx4xNwNanrHUNgMPTjyjRSGyRp5GenDYy5do-F7lam5EkkhrGkuziPdYFFrjHBGA3rQUKDHFA'}
               alt="Active Space Preview"
               className="w-full h-full object-cover"
             />
@@ -397,19 +398,14 @@ export const MaterialCatalog: React.FC<MaterialCatalogProps> = ({
                 <div>
                   {/* Photo Texture Preview Container - ONLY {code}.jpg is shown */}
                   <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-[#0b141c]">
-                    <img
+                    <CatalogImage
                       src={mat.imageUrl && mat.imageUrl.includes('?v=') ? mat.imageUrl : `${mat.imageUrl}?v=2`}
                       alt={`${mat.name} (${mat.code})`}
-                      loading="lazy"
+                      colorHex={mat.colorHex}
+                      materialCode={mat.code || mat.sku}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                        // If specific image path failed, fallback to color gradient
-                        const target = e.currentTarget;
-                        target.style.display = 'none';
-                        if (target.parentElement) {
-                          target.parentElement.style.backgroundColor = mat.colorHex || '#222b33';
-                        }
-                      }}
+                      containerClassName="w-full h-full"
+                      loading="lazy"
                     />
 
                     {/* NEW Badge */}

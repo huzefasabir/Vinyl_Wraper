@@ -13,6 +13,7 @@ import {
   Cpu,
   ChevronRight
 } from 'lucide-react';
+import { resolveImageUrl } from '../services/api';
 import { DropZone } from './DropZone';
 import { TargetSurfaceModal } from './TargetSurfaceModal';
 import { SpaceImage, SpaceSegment, Material } from '../types';
@@ -231,7 +232,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="relative w-full aspect-[4/3] sm:aspect-[21/9] rounded-xl overflow-hidden bg-[#0b141c] border border-[#3e484f]/40">
             {/* Base Image */}
             <img
-              src={PRESET_SPACES[0].imageUrl}
+              src={resolveImageUrl(PRESET_SPACES[0].imageUrl)}
               alt="Kitchen Showcase Preview"
               className="w-full h-full object-cover"
             />
@@ -380,7 +381,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-[#0b141c]">
                   <div
                     className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
-                    style={{ backgroundImage: `url(${mat.imageUrl})` }}
+                    style={{ backgroundImage: `url(${resolveImageUrl(mat.imageUrl)})` }}
                   />
                   <div className="absolute inset-0 bg-[#0b141c]/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                     <span className="text-[11px] font-medium text-white flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#182028] border border-[#3e484f]">

@@ -39,7 +39,18 @@ def apply_vinyl_wrap(original_img, mask_img, vinyl_img):
     """
     Extracts purely the vinyl pattern from vinyl_img, tiles it, 
     and applies it opaquely over the masked region.
+    Optimized for memory efficiency (<512MB RAM).
     """
+    # Downscale input images if max dimension exceeds 1280px to stay safely within Render RAM limits
+    h, w = original_img.shape[:2]
+    max_dim = max(h, w)
+    if max_dim > 1280:
+        scale = 1280.0 / max_dim
+        new_w, new_h = int(w * scale), int(h * scale)
+        original_img = cv2.resize(original_img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        if mask_img is not None:
+            mask_img = cv2.resize(mask_img, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+
     # Step 1: Extract ONLY the vinyl texture (removes white text/labels automatically)
     clean_vinyl = extract_pure_vinyl_texture(vinyl_img)
     
@@ -54,7 +65,7 @@ def apply_vinyl_wrap(original_img, mask_img, vinyl_img):
     
     # Smooth edges to prevent sharp boundary artifacts
     smooth_mask = cv2.GaussianBlur(binary_mask, (3, 3), 0)
-    alpha_mask = (smooth_mask / 255.0)[:, :, np.newaxis]  # Shape: (H, W, 1)
+    alpha_mask = (smooth_mask.astype(np.float32) / 255.0)[:, :, np.newaxis]  # Shape: (H, W, 1)
 
     # Step 3: Seamlessly Tile ONLY the Extracted Vinyl Texture
     img_h, img_w = original_img.shape[:2]
@@ -69,15 +80,15 @@ def apply_vinyl_wrap(original_img, mask_img, vinyl_img):
     L_orig = lab_orig[:, :, 0].astype(np.float32)
 
     # Calculate mean lightness across target mask area
-    L_mean = np.mean(L_orig[binary_mask > 0]) if np.any(binary_mask > 0) else 128.0
+    mask_indices = binary_mask > 0
+    L_mean = float(np.mean(L_orig[mask_indices])) if np.any(mask_indices) else 128.0
     luminance_multiplier = np.clip(L_orig / L_mean, 0.7, 1.3)
 
     # Multiply lightness onto vinyl pattern
-    realistic_vinyl = tiled_vinyl.astype(np.float32) * luminance_multiplier[:, :, np.newaxis]
-    realistic_vinyl = np.clip(realistic_vinyl, 0, 255).astype(np.uint8)
+    realistic_vinyl = np.clip(tiled_vinyl.astype(np.float32) * luminance_multiplier[:, :, np.newaxis], 0, 255).astype(np.uint8)
 
     # Step 5: Replace surface area opaquely inside the mask
-    final_output = (realistic_vinyl * alpha_mask + original_img * (1.0 - alpha_mask)).astype(np.uint8)
+    final_output = (realistic_vinyl.astype(np.float32) * alpha_mask + original_img.astype(np.float32) * (1.0 - alpha_mask)).astype(np.uint8)
 
     return final_output
 

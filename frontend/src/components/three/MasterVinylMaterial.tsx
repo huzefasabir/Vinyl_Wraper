@@ -17,6 +17,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 import * as THREE from 'three';
 import { useTexture } from '@react-three/drei';
 import { Material as VinylMaterial } from '../../types';
+import { resolveImageUrl } from '../../services/api';
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ function toApiUrl(relativePath: string | undefined): string | null {
   const clean = relativePath
     .replace(/^storage_data\/images\//, '')
     .replace(/^images\//, '');
-  return `/api/images/${clean}`;
+  return resolveImageUrl(`/api/images/${clean}`);
 }
 
 // ── Inner loader ──────────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ function VinylMaterialLoader({ vinyl, children }: LoaderProps) {
     if (bumpUrl)    m.bump    = bumpUrl;
     if (normalUrl)  m.normal  = normalUrl;
     // Fallback: use the visible swatch image when no PBR maps exist
-    if (!diffuseUrl && vinyl.imageUrl) m.diffuse = vinyl.imageUrl;
+    if (!diffuseUrl && vinyl.imageUrl) m.diffuse = resolveImageUrl(vinyl.imageUrl);
     return m;
   }, [diffuseUrl, bumpUrl, normalUrl, vinyl.imageUrl]);
 

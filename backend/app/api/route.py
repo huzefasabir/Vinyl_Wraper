@@ -738,8 +738,15 @@ async def vinyl_render_endpoint(payload: VinylRenderRequest):
         orig  = _decode(payload.baseImageData)
         mask  = _decode(payload.maskImageData)
 
+        # Downscale images if larger than 1280px to fit inside 512MB RAM free tier container
+        h, w = orig.shape[:2]
+        max_dim = max(h, w)
+        if max_dim > 1280:
+            scale = 1280.0 / max_dim
+            orig = _cv2.resize(orig, (int(w * scale), int(h * scale)), interpolation=_cv2.INTER_AREA)
+
         if mask.shape[:2] != orig.shape[:2]:
-            mask = _cv2.resize(mask, (orig.shape[1], orig.shape[0]), interpolation=_cv2.INTER_LINEAR)
+            mask = _cv2.resize(mask, (orig.shape[1], orig.shape[0]), interpolation=_cv2.INTER_NEAREST)
 
         swatch_bgr = _cv2.imread(str(swatch_path))
         if swatch_bgr is None:
@@ -750,7 +757,15 @@ async def vinyl_render_endpoint(payload: VinylRenderRequest):
         ok, buf = _cv2.imencode(".png", result)
         if not ok:
             raise RuntimeError("cv2.imencode failed")
-        return "data:image/png;base64," + _b64.b64encode(buf.tobytes()).decode("utf-8")
+
+        encoded_str = "data:image/png;base64," + _b64.b64encode(buf.tobytes()).decode("utf-8")
+        
+        # Free memory aggressively
+        del orig, mask, swatch_bgr, result, buf
+        import gc
+        gc.collect()
+
+        return encoded_str
 
     try:
         composite_b64: str = await loop.run_in_executor(None, _run_old_pipeline)

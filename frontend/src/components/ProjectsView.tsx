@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FolderKanban, Plus, Layers, Calendar, ArrowRight, Trash2, Download } from 'lucide-react';
 import { SpaceImage } from '../types';
 import { PRESET_SPACES } from '../data/presetSpaces';
+import { resolveImageUrl } from '../services/api';
 
 interface ProjectsViewProps {
   onLoadSpace: (space: SpaceImage) => void;
@@ -95,7 +96,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               {/* Snapshot image */}
               <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-[#0b141c] border border-[#3e484f]/40">
                 <img
-                  src={proj.thumbnailUrl}
+                  src={resolveImageUrl(proj.thumbnailUrl)}
                   alt={proj.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />

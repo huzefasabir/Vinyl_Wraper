@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Download, FileText, Check, Copy, Sparkles, X, ShieldCheck, Printer } from 'lucide-react';
 import { SpaceImage, SpaceSegment } from '../types';
+import { resolveImageUrl } from '../services/api';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -115,7 +116,7 @@ COMPLIANCE & TESTING STANDARDS:
           {/* Preview Snapshot & Project Meta */}
           <div className="flex flex-col sm:flex-row gap-4 p-3 bg-[#141c24] rounded-xl border border-[#3e484f]/40">
             <img
-              src={currentRenderImage}
+              src={resolveImageUrl(currentRenderImage)}
               alt="Project Render"
               className="w-full sm:w-48 h-28 object-cover rounded-lg border border-[#3e484f]/40"
             />

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Layers, ArrowRight, X, Check, Loader2, Scan } from 'lucide-react';
 import { SpaceImage } from '../types';
-import { VisionSegmentationResult, startVolkaAnalysis } from '../services/api';
+import { VisionSegmentationResult, startVolkaAnalysis, resolveImageUrl } from '../services/api';
 import { log } from '../services/logger';
 
 interface TargetSurfaceModalProps {
@@ -135,7 +135,7 @@ export const TargetSurfaceModal: React.FC<TargetSurfaceModalProps> = ({
           {/* ── Compact image preview ── */}
           <div className="relative w-full rounded-xl overflow-hidden bg-[#0b141c] border border-[#3e484f]/50 aspect-video flex items-center justify-center">
             <img
-              src={space.imageUrl}
+              src={resolveImageUrl(space.imageUrl)}
               alt={space.title}
               className="w-full h-full object-cover"
             />

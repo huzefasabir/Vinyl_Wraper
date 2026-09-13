@@ -6,6 +6,9 @@
     "dev": "npm --prefix frontend run dev",
     "dev:backend": "cd backend && python main.py",
     "build": "npm --prefix frontend run build",
+    "build:mobile": "npm --prefix frontend run build:mobile",
+    "mobile:android": "npm --prefix frontend run cap:android",
+    "mobile:ios": "npm --prefix frontend run cap:ios",
     "lint": "npm --prefix frontend run lint",
     "start": "npm --prefix frontend run start"
   }
